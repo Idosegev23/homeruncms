@@ -1,0 +1,52 @@
+/* styles/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@import url("https://fonts.googleapis.com/css?family=Raleway");
+
+@layer base {
+  body {
+    @apply font-sans rtl text-right;
+  }
+}
+
+@layer components {
+  .layout {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .header {
+    @apply bg-gray-100 py-6;
+  }
+
+  .nav {
+    @apply flex justify-start;
+  }
+
+  .nav a {
+    @apply ml-5 text-gray-700 hover:text-gray-900 transition-colors;
+  }
+
+  .footer {
+    @apply mt-12 text-center text-gray-500;
+  }
+
+  .message-queue-popup {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 300px;
+    background-color: white;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    z-index: 1000;
+    border-radius: 8px;
+  }
+}
+
+/* Custom styles that can't be easily replaced with Tailwind classes */
+@layer utilities {
+  .rtl {
+    direction: rtl;
+  }
+}
