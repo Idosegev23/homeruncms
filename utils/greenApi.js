@@ -6,6 +6,42 @@ const apiToken = process.env.NEXT_PUBLIC_WHATSAPP_API_TOKEN_INSTANCE;
 const apiUrl = process.env.NEXT_PUBLIC_GREENAPI_API_URL;
 const mediaUrl = process.env.NEXT_PUBLIC_GREENAPI_MEDIA_URL;
 
+const CACHE_DURATION = 5 * 60 * 1000; // 5 דקות במילישניות
+let cache = {
+  incomingMessages: null,
+  outgoingMessages: null,
+  lastFetch: {
+    incomingMessages: 0,
+    outgoingMessages: 0
+  }
+};
+const getMessage = async (chatId, idMessage) => {
+  try {
+      const response = await axios.post(
+          `${apiUrl}/waInstance${instanceId}/getMessage/${apiToken}`,
+          { chatId, idMessage }
+      );
+      return response.data;
+  } catch (error) {
+      console.error('Error getting message:', error);
+      throw error;
+  }
+}; 
+const getCachedData = async (key, fetchFunction) => {
+  const now = Date.now();
+  if (!cache[key] || now - cache.lastFetch[key] > CACHE_DURATION) {
+    try {
+      const data = await fetchFunction();
+      cache[key] = data;
+      cache.lastFetch[key] = now;
+    } catch (error) {
+      console.error(`Error fetching ${key}:`, error);
+      throw error;
+    }
+  }
+  return cache[key];
+};
+
 let dailyMessageCount = 0;
 let lastResetDate = new Date().toDateString();
 let messageQueue = [];
@@ -26,8 +62,6 @@ const isValidSendTime = (date) => {
   if (day === 5 && hour >= 14) return false; // Friday after 2 PM
   if (day === 6) return false; // Saturday
   if (hour < 8 || hour >= 20) return false;
-
-  // TODO: Add logic for Israeli holidays
 
   return true;
 };
@@ -56,17 +90,14 @@ const processQueue = async () => {
         messageQueue.shift();
         localStorage.setItem('messageQueue', JSON.stringify(messageQueue));
         
-        // 15 seconds delay between messages
         await new Promise(resolve => setTimeout(resolve, 15000));
         
       } catch (error) {
         console.error('Error sending message from queue:', error);
-        // In case of error, move the message to the end of the queue
         messageQueue.push(messageQueue.shift());
-        await new Promise(resolve => setTimeout(resolve, 60000)); // Wait a minute before next attempt
+        await new Promise(resolve => setTimeout(resolve, 60000));
       }
     } else {
-      // Wait until the next valid send time
       const nextValidTime = getNextValidSendTime(now);
       const waitTime = nextValidTime.getTime() - now.getTime();
       await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -174,12 +205,20 @@ const receiveNotification = async () => {
     const response = await axios.get(
       `${apiUrl}/waInstance${instanceId}/receiveNotification/${apiToken}`
     );
-    return response.data;
+    
+    if (response.data) {
+      console.log('Notification received:', response.data);
+      return response.data;
+    } else {
+      console.log('No new notifications.');
+      return null;
+    }
   } catch (error) {
     console.error('Error receiving notification:', error);
     throw error;
   }
 };
+
 
 const deleteNotification = async (receiptId) => {
   try {
@@ -191,66 +230,6 @@ const deleteNotification = async (receiptId) => {
     console.error('Error deleting notification:', error);
     throw error;
   }
-};
-
-const getLastIncomingMessages = async (minutes = 10) => {
-  try {
-    const response = await axios.get(
-      `${apiUrl}/waInstance${instanceId}/lastIncomingMessages/${apiToken}`,
-      { params: { minutes } }
-    );
-    return response.data;
-  } catch (error) {
-    console.error('Error getting last incoming messages:', error);
-    throw error;
-  }
-};
-
-// New function to get the last outgoing messages
-const getLastOutgoingMessages = async (minutes = 1440) => {
-  try {
-    const response = await axios.get(
-      `${apiUrl}/waInstance${instanceId}/lastOutgoingMessages/${apiToken}`,
-      { params: { minutes } }
-    );
-    return response.data;
-  } catch (error) {
-    console.error('Error getting last outgoing messages:', error);
-    throw error;
-  }
-};
-
-const addToQueue = (phoneNumber, message, immediate = false) => {
-  const chatId = `${formatPhoneNumber(phoneNumber)}@c.us`;
-  messageQueue.push({ chatId, message, immediate });
-  localStorage.setItem('messageQueue', JSON.stringify(messageQueue));
-  console.log(`Message added to queue for ${chatId}: ${message}`);
-  if (!isProcessingQueue) {
-    processQueue();
-  }
-};
-
-const getQueueLength = () => messageQueue.length;
-
-const getQueue = () => messageQueue;
-
-const removeFromQueue = (index) => {
-  messageQueue.splice(index, 1);
-  localStorage.setItem('messageQueue', JSON.stringify(messageQueue));
-};
-
-const updateQueueItem = (index, newMessage) => {
-  if (index >= 0 && index < messageQueue.length) {
-    messageQueue[index].message = newMessage;
-    localStorage.setItem('messageQueue', JSON.stringify(messageQueue));
-  }
-};
-
-const getMessageStats = () => {
-  return {
-    dailyCount: dailyMessageCount,
-    queueLength: messageQueue.length
-  };
 };
 
 const formatPhoneNumber = (phoneNumber) => {
@@ -281,21 +260,81 @@ const greenApi = {
   getChatHistory,
   receiveNotification,
   deleteNotification,
-  getLastIncomingMessages,
-  getLastOutgoingMessages, // New function added here
-  addToQueue,
-  getQueueLength,
-  getQueue,
-  removeFromQueue,
-  updateQueueItem,
-  getMessageStats,
+  
+  getLastIncomingMessages: async (minutes = 1440) => {
+    return getCachedData('incomingMessages', async () => {
+      try {
+        const response = await axios.get(
+          `${apiUrl}/waInstance${instanceId}/lastIncomingMessages/${apiToken}`,
+          { params: { minutes } }
+        );
+        return response.data;
+      } catch (error) {
+        console.error('Error getting last incoming messages:', error);
+        throw error;
+      }
+    });
+  },
+  getLastOutgoingMessages: async (minutes = 1440) => {
+    return getCachedData('outgoingMessages', async () => {
+      try {
+        const response = await axios.get(
+          `${apiUrl}/waInstance${instanceId}/lastOutgoingMessages/${apiToken}`,
+          { params: { minutes } }
+        );
+        return response.data;
+      } catch (error) {
+        console.error('Error getting last outgoing messages:', error);
+        throw error;
+      }
+    });
+  },
+  addToQueue: (phoneNumber, message, immediate = false) => {
+    const chatId = `${formatPhoneNumber(phoneNumber)}@c.us`;
+    messageQueue.push({ chatId, message, immediate });
+    localStorage.setItem('messageQueue', JSON.stringify(messageQueue));
+    console.log(`Message added to queue for ${chatId}: ${message}`);
+    if (!isProcessingQueue) {
+      processQueue();
+    }
+  },
+  getQueueLength: () => messageQueue.length,
+  getQueue: () => messageQueue,
+  removeFromQueue: (index) => {
+    messageQueue.splice(index, 1);
+    localStorage.setItem('messageQueue', JSON.stringify(messageQueue));
+  },
+  updateQueueItem: (index, newMessage) => {
+    if (index >= 0 && index < messageQueue.length) {
+      messageQueue[index].message = newMessage;
+      localStorage.setItem('messageQueue', JSON.stringify(messageQueue));
+    }
+  },
+  getMessageStats: () => {
+    return {
+      dailyCount: dailyMessageCount,
+      queueLength: messageQueue.length
+    };
+  },
   getNextValidSendTime,
   sendNow,
   scheduleMessage,
   isValidSendTime,
   formatPhoneNumber,
   processQueue,
-  chatId
+  chatId,
+  getMessage,
+  clearCache: () => {
+    cache = {
+      incomingMessages: null,
+      outgoingMessages: null,
+      lastFetch: {
+        incomingMessages: 0,
+        outgoingMessages: 0
+      }
+    };
+    console.log('Cache cleared');
+  }
 };
 
 export default greenApi;

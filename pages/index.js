@@ -28,7 +28,6 @@ const DashboardCard = ({ title, value, icon, color, isLoading }) => (
   </motion.div>
 );
 
-
 export default function Dashboard() {
   const [data, setData] = useState({
     properties: 0,
@@ -40,34 +39,39 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
 
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [customers, properties, lastOutgoingMessages, lastIncomingMessages] = await Promise.all([
+        fetchCustomers(),
+        fetchProperties(),
+        greenApi.getLastOutgoingMessages(1440),
+        greenApi.getLastIncomingMessages(1440)
+      ]);
+
+      setData({
+        properties: properties.length,
+        clients: customers.length,
+        sentMessages: lastOutgoingMessages.length,
+        readMessages: 90, // TODO: להחליף בנתונים אמיתיים כשיהיו זמינים
+        incomingMessages: lastIncomingMessages.length,
+        unansweredMessages: 10, // TODO: להחליף בנתונים אמיתיים כשיהיו זמינים
+      });
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const customers = await fetchCustomers();
-        const properties = await fetchProperties();
-  
-        // קבלת הודעות שנשלחו ב-24 שעות האחרונות
-        const lastOutgoingMessages = await greenApi.getLastOutgoingMessages(1440); // 1440 דקות = 24 שעות
-        // קבלת הודעות שנכנסו ב-24 שעות האחרונות
-        const lastIncomingMessages = await greenApi.getLastIncomingMessages(1440); // 1440 דקות = 24 שעות
-  
-        setData((prevData) => ({
-          ...prevData,
-          clients: customers.length,
-          properties: properties.length,
-          sentMessages: lastOutgoingMessages.length,
-          incomingMessages: lastIncomingMessages.length,
-        }));
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-  
     loadData();
   }, []);
-  
+
+  const handleRefresh = async () => {
+    greenApi.clearCache();
+    await loadData();
+  };
 
   const cardData = [
     { title: "סה\"כ נכסים", value: data.properties, color: "border-blue-500", icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h2l1 2h14l1-2h2M7 10V7a1 1 0 011-1h8a1 1 0 011 1v3M7 21h10v-3a1 1 0 00-1-1H8a1 1 0 00-1 1v3zM5 10v10a1 1 0 001 1h12a1 1 0 001-1V10"></path></svg> },
@@ -84,6 +88,15 @@ export default function Dashboard() {
         <header className="mb-8 text-center">
           <h1 className="text-4xl font-semibold text-gray-800">דשבורד</h1>
         </header>
+
+        <div className="mb-4 flex justify-end">
+          <button
+            onClick={handleRefresh}
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          >
+            רענן נתונים
+          </button>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {cardData.map((card, index) => (

@@ -3,6 +3,8 @@ import { useTable, useRowSelect, usePagination, useSortBy, useFilters, useGlobal
 import { fetchCustomers, updateCustomer, deleteCustomer, fetchProperties } from '../utils/airtable';
 import { PencilSquareIcon, TrashIcon, FunnelIcon, MagnifyingGlassIcon, HomeIcon } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/router';
+import greenApi from '../utils/greenApi';
+
 
 const IndeterminateCheckbox = React.forwardRef(
   ({ indeterminate, ...rest }, ref) => {
@@ -151,6 +153,7 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
 
 const MatchPropertiesModal = ({ customer, properties, onClose, onSendMessage }) => {
   const [selectedProperties, setSelectedProperties] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const calculateMatchPercentage = (property) => {
     let matchScore = 0;
@@ -158,8 +161,8 @@ const MatchPropertiesModal = ({ customer, properties, onClose, onSendMessage }) 
     const otherCriteriaWeight = 0.3;
 
     // Budget calculation
-    const maxPropertyPrice = customer.Budget + 1000000;
-    const minPropertyPrice = customer.Budget * 0.85;
+    const maxPropertyPrice = customer.Budget * 1.15;
+    const minPropertyPrice = customer.Budget - 1000000;
     if (property.price <= maxPropertyPrice && property.price >= minPropertyPrice) {
       matchScore += budgetWeight;
     } else {
@@ -197,63 +200,82 @@ const MatchPropertiesModal = ({ customer, properties, onClose, onSendMessage }) 
         : [...prev, property]
     );
   };
+  
 
-  const matchedProperties = properties
-    .map(property => ({
-      ...property,
-      matchPercentage: calculateMatchPercentage(property),
-      unmatchedCriteria: getUnmatchedCriteria(property),
-    }))
-    .filter(property => property.matchPercentage > 0)
-    .sort((a, b) => b.matchPercentage - a.matchPercentage);
+  const filteredProperties = useMemo(() => {
+    return properties
+      .map(property => ({
+        ...property,
+        matchPercentage: calculateMatchPercentage(property),
+        unmatchedCriteria: getUnmatchedCriteria(property),
+      }))
+      .filter(property => property.matchPercentage > 0)
+      .filter(property => 
+        property.street.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        property.city.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      .sort((a, b) => b.matchPercentage - a.matchPercentage);
+  }, [properties, searchTerm]);
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center">
-      <div className="bg-white p-6 rounded-lg max-w-6xl w-full max-h-[80vh] overflow-y-auto relative">
-        <div className="flex justify-between items-center mb-4">
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex justify-center items-start pt-10 z-50">
+        <div className="bg-white p-6 rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col relative">
+          <div className="flex justify-between items-center mb-4 sticky top-0 bg-white z-10 pb-4 border-b">
           <h2 className="text-xl font-semibold">נכסים מתאימים ל{customer.First_name} {customer.Last_name}</h2>
           <button onClick={onClose} className="text-red-500 text-lg font-bold">&times;</button>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
-          {matchedProperties.map(property => (
-            <div 
-              key={property.id} 
-              className={`relative border p-4 rounded transition-transform transform cursor-pointer ${
-                selectedProperties.some(p => p.id === property.id)
-                  ? 'bg-blue-200 border-blue-600 shadow-lg' 
-                  : 'hover:bg-gray-100 hover:scale-105 hover:shadow-lg'
-              }`}
-              onClick={() => togglePropertySelection(property)}
-            >
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-bold">{property.street}, {property.city}</h3>
-                <span className="text-lg font-bold">{property.matchPercentage}% התאמה</span>
-              </div>
-              <p>מחיר: ₪{property.price ? Number(property.price).toLocaleString() : 'לא זמין'}</p>
-              <p>חדרים: {property.rooms}</p>
-              <p>שטח: {property.square_meters} מ"ר</p>
-              <p>קומה: {property.floor}</p>
-              {property.unmatchedCriteria.length > 0 && (
-                <div className="mt-2">
-                  <p className="font-bold">אי-התאמות:</p>
-                  <ul className="list-disc list-inside text-sm text-red-600">
-                    {property.unmatchedCriteria.map((criteria, index) => (
-                      <li key={index}>{criteria}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {selectedProperties.some(p => p.id === property.id) && (
-                <div className="absolute inset-0 bg-blue-500 bg-opacity-20 flex justify-center items-center text-green-600 font-bold text-4xl">
-                  ✔️
-                </div>
-              )}
-            </div>
-          ))}
+        <div className="mb-4 sticky top-16 bg-white z-10 pb-4">
+          <input
+            type="text"
+            placeholder="חיפוש לפי כתובת או עיר..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full p-2 border rounded"
+          />
         </div>
 
-        <div className="sticky bottom-0 left-0 w-full bg-gray-100 p-4 flex justify-between border-t">
+        <div className="overflow-y-auto flex-grow">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredProperties.map(property => (
+              <div 
+                key={property.id} 
+                className={`relative border p-4 rounded transition-all cursor-pointer ${
+                  selectedProperties.some(p => p.id === property.id)
+                    ? 'bg-blue-200 border-blue-600 shadow-lg' 
+                    : 'hover:bg-gray-100 hover:shadow-md'
+                }`}
+                onClick={() => togglePropertySelection(property)}
+              >
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-lg font-bold">{property.street}, {property.city}</h3>
+                  <span className="text-lg font-bold">{property.matchPercentage}% התאמה</span>
+                </div>
+                <p>מחיר: ₪{property.price ? Number(property.price).toLocaleString() : 'לא זמין'}</p>
+                <p>חדרים: {property.rooms}</p>
+                <p>שטח: {property.square_meters} מ"ר</p>
+                <p>קומה: {property.floor}</p>
+                {property.unmatchedCriteria.length > 0 && (
+                  <div className="mt-2">
+                    <p className="font-bold">אי-התאמות:</p>
+                    <ul className="list-disc list-inside text-sm text-red-600">
+                      {property.unmatchedCriteria.map((criteria, index) => (
+                        <li key={index}>{criteria}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {selectedProperties.some(p => p.id === property.id) && (
+                  <div className="absolute inset-0 bg-blue-500 bg-opacity-20 flex justify-center items-center text-green-600 font-bold text-4xl">
+                    ✔️
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 left-0 w-full bg-gray-100 p-4 flex justify-between border-t mt-4">
           <button 
             onClick={onClose}
             className="px-6 py-3 bg-red-500 text-white font-semibold rounded shadow hover:bg-red-600 transition-colors"
@@ -340,20 +362,22 @@ const CustomerList = () => {
   };
 
   const handleSendMessage = (selectedProperties) => {
+    // Define selectedCustomerIds by capturing the selected customers
+    const selectedCustomerIds = [matchingCustomer.id];
+    const selectedPropertyIds = selectedProperties.map(p => p.id); // Extract IDs of selected properties only
+    console.log(`Sending message for customer: ${matchingCustomer.First_name} ${matchingCustomer.Last_name}`);
+    console.log('Selected properties:', selectedProperties.map(p => `${p.street}, ${p.city} - ₪${p.price.toLocaleString()}`));
+  
     router.push({
       pathname: '/send-message',
       query: { 
-        customerId: matchingCustomer.id, 
-        propertyIds: selectedProperties.map(p => p.id).join(',')
+        source: 'customers', 
+        customerIds: selectedCustomerIds.join(','), // Join the IDs into a comma-separated string
+        propertyIds: selectedPropertyIds.join(',') // Join the property IDs into a comma-separated string
       }
     });
   };
-
-  const formatPhoneNumber = (phone) => {
-    if (!phone) return '';
-    const phoneString = String(phone);
-    return phoneString.startsWith('0') ? phoneString : `0${phoneString}`;
-  };
+  
 
   const columns = useMemo(
     () => [
@@ -371,7 +395,7 @@ const CustomerList = () => {
       { 
         Header: 'טלפון', 
         accessor: 'Cell', 
-        Cell: ({ value }) => formatPhoneNumber(value),
+        Cell: ({ value }) => value, // Simply return the value
         Filter: FilterPopup 
       },
       { 

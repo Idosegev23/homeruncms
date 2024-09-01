@@ -36,11 +36,29 @@
     bottom: 20px;
     right: 20px;
     width: 300px;
-    background-color: white;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    background-color: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     padding: 20px;
     z-index: 1000;
-    border-radius: 8px;
+    border-radius: 12px;
+    transition: all 0.3s ease-in-out;
+  }
+
+  .message-queue-popup:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  }
+
+  .message-queue-popup.minimized {
+    width: auto;
+    padding: 10px 20px;
+  }
+
+  .message-queue-popup.minimized .minimized-content {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
   }
 }
 

@@ -61,6 +61,8 @@ const PropertyList = () => {
   };
 
   const handleSendMessage = (property) => {
+    const selectedPropertyIds = [property.id]; // Capture the current property's ID
+    console.log('Selected property IDs:', selectedPropertyIds); // לוג לבדיקה
     const relevantCustomers = customers.filter(customer => {
       // וודא שהתקציב והמחיר הם מספרים תקפים
       if (!customer.Budget || !property.price || 
@@ -82,11 +84,9 @@ const PropertyList = () => {
   
     router.push({
       pathname: '/send-message',
-      query: { 
-        propertyId: property.id,
-        customerIds: relevantCustomers.map(c => c.id).join(',')
-      }
+      query: { source: 'properties', propertyIds: selectedPropertyIds.join(','), customerId: relevantCustomers }
     });
+    
   };
 
   const columns = useMemo(

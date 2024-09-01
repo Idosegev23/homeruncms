@@ -153,6 +153,11 @@ const IncomingMessages = () => {
     setMatchingCustomer(customer);
   };
 
+  const handleRefresh = async () => {
+    greenApi.clearCache();
+    await loadMessages();
+  };
+
   return (
     <Layout>
       <div className="container mx-auto p-4 bg-white rounded-lg shadow-lg">
@@ -160,7 +165,7 @@ const IncomingMessages = () => {
 
         <div className="flex justify-between items-center mb-4">
           <button
-            onClick={loadMessages}
+            onClick={handleRefresh}
             className="p-1 w-24 h-8 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition duration-300 text-sm"
           >
             רענן

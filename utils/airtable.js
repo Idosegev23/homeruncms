@@ -44,7 +44,11 @@ export const fetchProperties = async () => {
 };
 
 // Function to get relevant properties for a customer
-export const getRelevantProperties = (customer, properties) => {
+export const getRelevantProperties = (customer, properties = []) => {
+  if (!properties || !Array.isArray(properties)) {
+    return []; // מחזיר מערך ריק אם properties אינו מוגדר או אינו מערך
+  }
+
   const minPropertyPrice = customer.Budget - 1000000;
   const maxPropertyPrice = customer.Budget * 1.15;
   
@@ -75,4 +79,51 @@ export const updateProperty = async (property) => {
 // Delete a property from the 'Properties' table
 export const deleteProperty = async (id) => {
   await base('tbljuncsdRRGyo660').destroy(id);
+};
+export const fetchChatRecords = async (params = {}) => {
+  const records = await base('Chat').select(params).all();
+  return records.map(record => ({
+    id: record.id,
+    createdTime: record.createdTime,
+    ...record.fields
+  }));
+};
+
+// Fetch a single chat record
+export const fetchChatRecord = async (recordId) => {
+  const record = await base('Chat').find(recordId);
+  return {
+    id: record.id,
+    createdTime: record.createdTime,
+    ...record.fields
+  };
+};
+
+// Create chat records
+export const createChatRecords = async (records) => {
+  const createdRecords = await base('Chat').create(records);
+  return createdRecords.map(record => ({
+    id: record.id,
+    createdTime: record.createdTime,
+    fields: record.fields
+  }));
+};
+
+// Update chat records
+export const updateChatRecords = async (records) => {
+  const updatedRecords = await base('Chat').update(records);
+  return updatedRecords.map(record => ({
+    id: record.id,
+    createdTime: record.createdTime,
+    fields: record.fields
+  }));
+};
+
+// Delete chat records
+export const deleteChatRecords = async (recordIds) => {
+  const deletedRecords = await base('Chat').destroy(recordIds);
+  return deletedRecords.map(record => ({
+    id: record.id,
+    deleted: true
+  }));
 };
