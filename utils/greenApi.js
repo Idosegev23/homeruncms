@@ -15,6 +15,12 @@ let cache = {
     outgoingMessages: 0
   }
 };
+
+let dailyMessageCount = 0;
+let lastResetDate = new Date().toDateString();
+let messageQueue = [];
+let isProcessingQueue = false;
+
 const getMessage = async (chatId, idMessage) => {
   try {
       const response = await axios.post(
@@ -26,7 +32,8 @@ const getMessage = async (chatId, idMessage) => {
       console.error('Error getting message:', error);
       throw error;
   }
-}; 
+};
+
 const getCachedData = async (key, fetchFunction) => {
   const now = Date.now();
   if (!cache[key] || now - cache.lastFetch[key] > CACHE_DURATION) {
@@ -41,11 +48,6 @@ const getCachedData = async (key, fetchFunction) => {
   }
   return cache[key];
 };
-
-let dailyMessageCount = 0;
-let lastResetDate = new Date().toDateString();
-let messageQueue = [];
-let isProcessingQueue = false;
 
 const resetDailyCount = () => {
   const today = new Date().toDateString();
@@ -86,7 +88,7 @@ const processQueue = async () => {
 
     if (immediate || (isValidSendTime(now) && dailyMessageCount < 200)) {
       try {
-        await sendMessage(chatId, message);
+        await greenApi.sendMessage(chatId, message);
         messageQueue.shift();
         localStorage.setItem('messageQueue', JSON.stringify(messageQueue));
         
@@ -106,132 +108,6 @@ const processQueue = async () => {
   isProcessingQueue = false;
 };
 
-const scheduleMessage = async (chatId, message, scheduledTime) => {
-  const now = new Date();
-  if (scheduledTime <= now) {
-    throw new Error("Scheduled time must be in the future");
-  }
-
-  const timeToWait = scheduledTime.getTime() - now.getTime();
-  
-  setTimeout(async () => {
-    try {
-      await sendMessage(chatId, message);
-      console.log(`Scheduled message sent to ${chatId}`);
-    } catch (error) {
-      console.error(`Failed to send scheduled message to ${chatId}:`, error);
-    }
-  }, timeToWait);
-
-  return { status: 'scheduled', scheduledTime };
-};
-
-const sendMessage = async (chatId, message) => {
-  console.log(`Attempting to send message to ${chatId}`);
-  resetDailyCount();
-  if (dailyMessageCount >= 200) {
-    throw new Error("Daily message limit reached");
-  }
-  try {
-    const response = await axios.post(
-      `${apiUrl}/waInstance${instanceId}/sendMessage/${apiToken}`,
-      { chatId, message }
-    );
-    dailyMessageCount++;
-    console.log(`Message sent successfully to ${chatId}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error sending message:', error);
-    throw error;
-  }
-};
-
-const sendNow = async (chatId, message) => {
-  console.log(`Sending message immediately to ${chatId}`);
-  try {
-    const response = await axios.post(
-      `${apiUrl}/waInstance${instanceId}/sendMessage/${apiToken}`,
-      { chatId, message }
-    );
-    console.log(`Message sent successfully to ${chatId}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error sending message:', error);
-    throw error;
-  }
-};
-
-const sendFile = async (chatId, filePath, filename, caption) => {
-  resetDailyCount();
-  if (dailyMessageCount >= 200) {
-    throw new Error("Daily message limit reached");
-  }
-
-  try {
-    const formData = new FormData();
-    formData.append('chatId', chatId);
-    formData.append('file', filePath);
-    if (filename) formData.append('filename', filename);
-    if (caption) formData.append('caption', caption);
-
-    const response = await axios.post(
-      `${mediaUrl}/waInstance${instanceId}/sendFileByUpload/${apiToken}`,
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
-    );
-    dailyMessageCount++;
-    return response.data;
-  } catch (error) {
-    console.error('Error sending file:', error);
-    throw error;
-  }
-};
-
-const getChatHistory = async (chatId, count = 100) => {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/waInstance${instanceId}/getChatHistory/${apiToken}`,
-      { chatId, count }
-    );
-    return response.data;
-  } catch (error) {
-    console.error('Error getting chat history:', error);
-    throw error;
-  }
-};
-
-const receiveNotification = async () => {
-  try {
-    const response = await axios.get(
-      `${apiUrl}/waInstance${instanceId}/receiveNotification/${apiToken}`
-    );
-    
-    if (response.data) {
-      console.log('Notification received:', response.data);
-      return response.data;
-    } else {
-      console.log('No new notifications.');
-      return null;
-    }
-  } catch (error) {
-    console.error('Error receiving notification:', error);
-    throw error;
-  }
-};
-
-
-const deleteNotification = async (receiptId) => {
-  try {
-    const response = await axios.delete(
-      `${apiUrl}/waInstance${instanceId}/deleteNotification/${apiToken}/${receiptId}`
-    );
-    return response.data;
-  } catch (error) {
-    console.error('Error deleting notification:', error);
-    throw error;
-  }
-};
-
 const formatPhoneNumber = (phoneNumber) => {
   if (!phoneNumber) {
     console.error('Invalid phone number:', phoneNumber);
@@ -245,21 +121,97 @@ const formatPhoneNumber = (phoneNumber) => {
   return `972${cleaned}`;
 };
 
-const chatId = (phoneNumber) => {
-  const formattedNumber = formatPhoneNumber(phoneNumber);
-  return `${formattedNumber}@c.us`;
-};
-
 const greenApi = {
   sendMessage: async (phoneNumber, message) => {
-    const chatId = `${formatPhoneNumber(phoneNumber)}@c.us`;
-    addToQueue(phoneNumber, message);
-    return { status: 'queued', queueLength: messageQueue.length };
+    console.log(`Attempting to send message to ${phoneNumber}`);
+    resetDailyCount();
+    if (dailyMessageCount >= 200) {
+      throw new Error("Daily message limit reached");
+    }
+    try {
+      const chatId = `${formatPhoneNumber(phoneNumber)}@c.us`;
+      const response = await axios.post(
+        `${apiUrl}/waInstance${instanceId}/sendMessage/${apiToken}`,
+        { chatId, message }
+      );
+      dailyMessageCount++;
+      console.log(`Message sent successfully to ${phoneNumber}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error sending message:', error);
+      throw error;
+    }
   },
-  sendFile,
-  getChatHistory,
-  receiveNotification,
-  deleteNotification,
+
+  sendFile: async (chatId, filePath, filename, caption) => {
+    resetDailyCount();
+    if (dailyMessageCount >= 200) {
+      throw new Error("Daily message limit reached");
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('chatId', chatId);
+      formData.append('file', filePath);
+      if (filename) formData.append('filename', filename);
+      if (caption) formData.append('caption', caption);
+
+      const response = await axios.post(
+        `${mediaUrl}/waInstance${instanceId}/sendFileByUpload/${apiToken}`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      dailyMessageCount++;
+      return response.data;
+    } catch (error) {
+      console.error('Error sending file:', error);
+      throw error;
+    }
+  },
+
+  getChatHistory: async (chatId, count = 100) => {
+    try {
+      const response = await axios.post(
+        `${apiUrl}/waInstance${instanceId}/getChatHistory/${apiToken}`,
+        { chatId, count }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error getting chat history:', error);
+      throw error;
+    }
+  },
+
+  receiveNotification: async () => {
+    try {
+      const response = await axios.get(
+        `${apiUrl}/waInstance${instanceId}/receiveNotification/${apiToken}`
+      );
+      
+      if (response.data) {
+        console.log('Notification received:', response.data);
+        return response.data;
+      } else {
+        console.log('No new notifications.');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error receiving notification:', error);
+      throw error;
+    }
+  },
+
+  deleteNotification: async (receiptId) => {
+    try {
+      const response = await axios.delete(
+        `${apiUrl}/waInstance${instanceId}/deleteNotification/${apiToken}/${receiptId}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      throw error;
+    }
+  },
   
   getLastIncomingMessages: async (minutes = 1440) => {
     return getCachedData('incomingMessages', async () => {
@@ -275,6 +227,7 @@ const greenApi = {
       }
     });
   },
+
   getLastOutgoingMessages: async (minutes = 1440) => {
     return getCachedData('outgoingMessages', async () => {
       try {
@@ -289,6 +242,7 @@ const greenApi = {
       }
     });
   },
+
   addToQueue: (phoneNumber, message, immediate = false) => {
     const chatId = `${formatPhoneNumber(phoneNumber)}@c.us`;
     messageQueue.push({ chatId, message, immediate });
@@ -298,6 +252,7 @@ const greenApi = {
       processQueue();
     }
   },
+
   getQueueLength: () => messageQueue.length,
   getQueue: () => messageQueue,
   removeFromQueue: (index) => {
@@ -316,13 +271,47 @@ const greenApi = {
       queueLength: messageQueue.length
     };
   },
+
   getNextValidSendTime,
-  sendNow,
-  scheduleMessage,
+  sendNow: async (chatId, message) => {
+    console.log(`Sending message immediately to ${chatId}`);
+    try {
+      const response = await axios.post(
+        `${apiUrl}/waInstance${instanceId}/sendMessage/${apiToken}`,
+        { chatId, message }
+      );
+      console.log(`Message sent successfully to ${chatId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error sending message:', error);
+      throw error;
+    }
+  },
+
+  scheduleMessage: async (chatId, message, scheduledTime) => {
+    const now = new Date();
+    if (scheduledTime <= now) {
+      throw new Error("Scheduled time must be in the future");
+    }
+
+    const timeToWait = scheduledTime.getTime() - now.getTime();
+    
+    setTimeout(async () => {
+      try {
+        await greenApi.sendMessage(chatId, message);
+        console.log(`Scheduled message sent to ${chatId}`);
+      } catch (error) {
+        console.error(`Failed to send scheduled message to ${chatId}:`, error);
+      }
+    }, timeToWait);
+
+    return { status: 'scheduled', scheduledTime };
+  },
+
   isValidSendTime,
   formatPhoneNumber,
   processQueue,
-  chatId,
+  chatId: (phoneNumber) => `${formatPhoneNumber(phoneNumber)}@c.us`,
   clearCache: () => {
     cache = {
       incomingMessages: null,
@@ -333,7 +322,9 @@ const greenApi = {
       }
     };
     console.log('Cache cleared');
-  }
+  },
+
+  getMessage
 };
 
 export default greenApi;
