@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import * as Icons from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { checkAuthentication } from '../utils/airtable';
 
 const Header = () => {
   const menuItems = [
@@ -7,30 +9,66 @@ const Header = () => {
     { name: 'לקוחות', icon: 'Users', href: '/customers' },
     { name: 'נכסים', icon: 'Building2', href: '/properties' },
     { name: "צ'אט", icon: 'MessageSquare', href: '/chat' },
-    { name: 'הודעות נכנסות', icon: 'Inbox', href: '/chat/incoming-messages' }, // New item added here
+    { name: 'הודעות נכנסות', icon: 'Inbox', href: '/chat/incoming-messages' },
     { name: 'הוספת לקוח', icon: 'UserPlus', href: '/add-customer' },
     { name: 'הוספת נכס', icon: 'BuildingPlus', href: '/add-property' },
   ];
 
+  const [username, setUsername] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const token = checkAuthentication();
+    if (token) {
+      try {
+        const user = JSON.parse(atob(token.split('.')[1]));
+        const email = user.email;
+        const adminEmails = ['Shimi.Homerun@gmail.com', 'shimi.homerun@gmail.com', 'Triroars@gmail.com', 'triroars@gmail.com'];
+        
+        if (adminEmails.includes(email)) {
+          setIsAdmin(true);
+        }
+
+        if (email.toLowerCase().includes('shimi.homerun@gmail.com')) {
+          setUsername('היי שימי');
+        } else if (email.toLowerCase().includes('meirbs.homerun@gmail.com')) {
+          setUsername('היי מאיר');
+        } else if (email.toLowerCase().includes('triroars@gmail.com')) {
+          setUsername('היי עידו');
+        } else {
+          setUsername(`היי ${email.split('@')[0]}`);
+        }
+      } catch (error) {
+        console.error('Error decoding token:', error);
+      }
+    }
+  }, []);
+
   return (
-    <header className="bg-black p-6">
-      <div className="flex flex-col items-center max-w-7xl mx-auto">
-        <div className="w-36 mb-8">
-          <img
-            src="https://images.cdn-files-a.com/uploads/8017269/400_65ad01f4b53e5.jpg"
-            alt="Company Logo"
-            className="w-full h-auto"
-          />
+    <header className="bg-black p-4">
+      <div className="max-w-7xl mx-auto flex justify-between items-center">
+        <div className="flex items-center">
+          <div className="w-24 mr-4">
+            <img
+              src="https://images.cdn-files-a.com/uploads/8017269/400_65ad01f4b53e5.jpg"
+              alt="Company Logo"
+              className="w-full h-auto"
+            />
+          </div>
+          <div>
+            {username && <h2 className="text-yellow-500 text-lg">{username}</h2>}
+            {isAdmin && <h3 className="text-yellow-500 text-sm">מנהל מערכת</h3>}
+          </div>
         </div>
-        <nav className="w-full">
-          <ul className="flex flex-wrap justify-center gap-4">
+        <nav>
+          <ul className="flex flex-wrap justify-end gap-2">
             {menuItems.map((item, index) => {
               const Icon = Icons[item.icon];
               return (
                 <li key={index} className="button-container">
                   <Link href={item.href} passHref>
                     <button className="button">
-                      {Icon && <Icon className="w-5 h-5 mr-2" />}
+                      {Icon && <Icon className="w-4 h-4 mr-1" />}
                       <span className="button-text">{item.name}</span>
                       <span className="button-effect"></span>
                     </button>
@@ -52,16 +90,16 @@ const Header = () => {
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 140px;
-          height: 48px;
-          font-size: 0.875rem;
+          width: 120px;
+          height: 36px;
+          font-size: 0.75rem;
           font-weight: bold;
           text-transform: uppercase;
           letter-spacing: 0.05em;
           color: #fbbf24;
           background-color: transparent;
-          border: 2px solid #fbbf24;
-          border-radius: 0.5rem;
+          border: 1px solid #fbbf24;
+          border-radius: 0.25rem;
           transition: color 0.3s ease;
           overflow: hidden;
         }

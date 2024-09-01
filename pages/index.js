@@ -1,10 +1,10 @@
 import Layout from '../components/Layout';
 import { useEffect, useState } from 'react';
-import { fetchCustomers, fetchProperties } from '../utils/airtable';
+import { fetchCustomers, fetchProperties, checkAuthentication } from '../utils/airtable';
 import greenApi from '../utils/greenApi';
+import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
 
-// Custom Icon Component (replace <CustomIcon /> with actual SVG icons if available)
 const CustomIcon = ({ svgPath }) => (
   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={svgPath}></path>
@@ -44,6 +44,7 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
+  const router = useRouter();
 
   const quotes = [
     "הצלחה לא נמדדת בכמה גבוה הגעת, אלא בכמה רחוק הגעת מהמקום שבו התחלת.",
@@ -84,13 +85,18 @@ export default function Dashboard() {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
-      setCurrentQuoteIndex(Math.floor(Math.random() * quotes.length)); // Randomize the quote
+      setCurrentQuoteIndex(Math.floor(Math.random() * quotes.length));
     }
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    const token = checkAuthentication();
+    if (!token) {
+      router.push('/auth');
+    } else {
+      loadData();
+    }
+  }, [router]);
 
   const handleRefresh = async () => {
     greenApi.clearCache();
@@ -133,7 +139,6 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Motivational Quote Section */}
         <div className="mt-12 bg-gradient-to-r from-black to-yellow-500 shadow-2xl rounded-lg p-8 text-center">
           <h2 className="text-2xl font-semibold text-white mb-4">ציטוט השראה יומי</h2>
           <p className="text-xl text-white italic">

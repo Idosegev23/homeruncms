@@ -1,12 +1,131 @@
 // utils/airtable.js
 import Airtable from 'airtable';
 import { AIRTABLE_API_KEY, AIRTABLE_BASE_ID } from '../config';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken'; // הוספנו את jwt ליצירת טוקן
+
 
 Airtable.configure({
   apiKey: AIRTABLE_API_KEY
 });
 
 const base = Airtable.base(AIRTABLE_BASE_ID);
+
+export const checkEmailExists = async (email) => {
+  const allowedEmails = [
+    'Shimi.Homerun@gmail.com',
+    'Triroars@gmail.com',
+    'meirbs.homerun@gmail.com',
+    'shimi.homerun@gmail.com',
+    'triroars@gmail.com'
+
+  ];
+
+  if (!allowedEmails.includes(email)) {
+    throw new Error('Email not allowed');
+  }
+
+  const records = await base('Users').select({
+    filterByFormula: `{fldh8OkswJptJbmPJ} = '${email}'`,
+  }).firstPage();
+
+  if (!records || records.length === 0) {
+    return false;
+  }
+
+  return records[0].get('fldig8IORj70XwWTV') !== '';
+};
+
+export const setPasswordForEmail = async ({ email, password }) => {
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const records = await base('Users').select({
+    filterByFormula: `{fldh8OkswJptJbmPJ} = '${email}'`,
+  }).firstPage();
+
+  let userId;
+  if (records && records.length > 0) {
+    await base('Users').update(records[0].id, {
+      fldig8IORj70XwWTV: hashedPassword,
+    });
+    userId = records[0].id;
+  } else {
+    const createdRecord = await base('Users').create([
+      {
+        fields: {
+          fldh8OkswJptJbmPJ: email,
+          fldig8IORj70XwWTV: hashedPassword,
+        },
+      },
+    ]);
+    userId = createdRecord[0].id;
+  }
+
+  return { id: userId, email };
+};
+
+export const authenticateUser = async ({ email, password }) => {
+  const records = await base('Users').select({
+    filterByFormula: `{fldh8OkswJptJbmPJ} = '${email}'`,
+  }).firstPage();
+
+  if (!records || records.length === 0) {
+    throw new Error('User not found');
+  }
+
+  const user = records[0];
+  const validPassword = await bcrypt.compare(password, user.get('fldig8IORj70XwWTV'));
+
+  if (!validPassword) {
+    throw new Error('Invalid password');
+  }
+
+  return {
+    id: user.id,
+    email: user.get('fldh8OkswJptJbmPJ'),
+  };
+};
+
+export const handleAuthFlow = async (email, password, confirmPassword, step) => {
+  if (step === 'email') {
+    const hasPassword = await checkEmailExists(email);
+    return { step: hasPassword ? 'login' : 'setPassword' };
+  } else if (step === 'setPassword') {
+    if (password !== confirmPassword) {
+      throw new Error('Passwords do not match');
+    }
+    const user = await setPasswordForEmail({ email, password });
+    const tokenResponse = await fetch('/api/auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId: user.id, email: user.email }),
+    });
+    const { token } = await tokenResponse.json();
+    return { ...user, token };
+  } else if (step === 'login') {
+    const user = await authenticateUser({ email, password });
+    const tokenResponse = await fetch('/api/auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId: user.id, email: user.email }),
+    });
+    const { token } = await tokenResponse.json();
+    return { ...user, token };
+  } else {
+    throw new Error('Invalid step');
+  }
+};
+export const checkAuthentication = () => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('authToken');
+    return token;
+  }
+  return null;
+};
 
 // Fetch all customers from the 'Customers' table
 export const fetchCustomers = async () => {
