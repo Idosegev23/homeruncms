@@ -11,7 +11,7 @@ const GlobalFilter = ({ filter, setFilter }) => {
         value={filter || ''}
         onChange={e => setFilter(e.target.value)}
         placeholder="חיפוש גלובלי..."
-        className="p-2 border rounded"
+        className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
       />
     </div>
   );
@@ -31,8 +31,6 @@ const PropertyList = () => {
           fetchProperties(),
           fetchCustomers()
         ]);
-        console.log('Fetched properties:', propertiesData); // Debugging log
-        console.log('Fetched customers:', customersData); // Debugging log
         setProperties(propertiesData);
         setCustomers(customersData);
       } catch (error) {
@@ -45,14 +43,13 @@ const PropertyList = () => {
   }, []);
 
   const handleEdit = (property) => {
-    // Implement edit logic here
     console.log('Editing property:', property);
   };
 
   const handleDelete = async (id) => {
     if (window.confirm('האם אתה בטוח שברצונך למחוק נכס זה?')) {
       try {
-        await deleteProperty(id); // Assume this function exists in airtable.js
+        await deleteProperty(id);
         setProperties(properties.filter(p => p.id !== id));
       } catch (error) {
         console.error('Error deleting property:', error);
@@ -61,10 +58,8 @@ const PropertyList = () => {
   };
 
   const handleSendMessage = (property) => {
-    const selectedPropertyIds = [property.id]; // Capture the current property's ID
-    console.log('Selected property IDs:', selectedPropertyIds); // לוג לבדיקה
+    const selectedPropertyIds = [property.id];
     const relevantCustomers = customers.filter(customer => {
-      // וודא שהתקציב והמחיר הם מספרים תקפים
       if (!customer.Budget || !property.price || 
           typeof customer.Budget !== 'number' || typeof property.price !== 'number') {
         return false;
@@ -73,20 +68,14 @@ const PropertyList = () => {
       const propertyPrice = property.price;
       const customerBudget = customer.Budget;
   
-      // הלקוח רלוונטי אם:
-      // 1. התקציב שלו עד מיליון ש"ח מעל מחיר הנכס
-      // 2. התקציב שלו לא פחות מ-85% ממחיר הנכס
       return (customerBudget <= propertyPrice + 1000000) && 
              (customerBudget >= propertyPrice * 0.85);
     });
-  
-    console.log('Relevant customers:', relevantCustomers); // לוג לבדיקה
   
     router.push({
       pathname: '/send-message',
       query: { source: 'properties', propertyIds: selectedPropertyIds.join(','), customerId: relevantCustomers }
     });
-    
   };
 
   const columns = useMemo(
@@ -108,7 +97,7 @@ const PropertyList = () => {
           <div className="flex space-x-4">
             <button 
               onClick={() => handleEdit(row.original)} 
-              className="p-1 text-blue-500 hover:text-blue-600 transition-colors"
+              className="p-1 text-yellow-500 hover:text-yellow-600 transition-colors"
             >
               <PencilSquareIcon className="h-5 w-5" />
             </button>
@@ -162,18 +151,16 @@ const PropertyList = () => {
   const { pageIndex, pageSize, globalFilter } = state;
 
   const LoadingIndicator = () => (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-xl">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-        <p className="mt-4 text-lg font-semibold text-gray-700">טוען נתונים...</p>
+    <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-center z-50">
+      <div className="bg-black p-6 rounded-lg shadow-xl">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-yellow-500 mx-auto"></div>
+        <p className="mt-4 text-lg font-semibold text-white">טוען נתונים...</p>
       </div>
     </div>
   );
 
-  console.log('Current properties state:', properties); // Debugging log
-
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4 bg-black text-white">
       {isLoading && <LoadingIndicator />}
       <div className="mb-4 flex justify-between items-center">
         <GlobalFilter
@@ -182,8 +169,8 @@ const PropertyList = () => {
         />
       </div>
       <div className="overflow-x-auto shadow-md sm:rounded-lg">
-        <table {...getTableProps()} className="w-full text-sm text-right text-gray-500">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+        <table {...getTableProps()} className="w-full text-sm text-right text-white bg-gray-800">
+          <thead className="text-xs uppercase bg-gray-700 text-yellow-500">
             {headerGroups.map(headerGroup => (
               <tr {...headerGroup.getHeaderGroupProps()}>
                 {headerGroup.headers.map(column => (
@@ -207,7 +194,7 @@ const PropertyList = () => {
               return (
                 <tr 
                   {...row.getRowProps()} 
-                  className="bg-white border-b hover:bg-gray-50"
+                  className="bg-black border-b border-gray-700 hover:bg-gray-700"
                 >
                   {row.cells.map(cell => (
                     <td {...cell.getCellProps()} className="py-4 px-6">
@@ -220,7 +207,41 @@ const PropertyList = () => {
           </tbody>
         </table>
       </div>
-      {/* Pagination controls */}
+      <div className="pagination mt-4 flex justify-between items-center">
+        <div>
+          <button onClick={() => gotoPage(0)} disabled={!canPreviousPage} className="px-4 py-2 mr-2 bg-yellow-500 text-black rounded disabled:bg-gray-300">
+            {'<<'}
+          </button>
+          <button onClick={() => previousPage()} disabled={!canPreviousPage} className="px-4 py-2 mr-2 bg-yellow-500 text-black rounded disabled:bg-gray-300">
+            {'<'}
+          </button>
+          <button onClick={() => nextPage()} disabled={!canNextPage} className="px-4 py-2 mr-2 bg-yellow-500 text-black rounded disabled:bg-gray-300">
+            {'>'}
+          </button>
+          <button onClick={() => gotoPage(pageCount - 1)} disabled={!canNextPage} className="px-4 py-2 mr-2 bg-yellow-500 text-black rounded disabled:bg-gray-300">
+            {'>>'}
+          </button>
+        </div>
+        <span>
+          עמוד{' '}
+          <strong>
+            {pageIndex + 1} מתוך {pageOptions.length}
+          </strong>{' '}
+        </span>
+        <select
+          value={pageSize}
+          onChange={e => {
+            setPageSize(Number(e.target.value));
+          }}
+          className="px-2 py-1 border border-yellow-500 rounded bg-gray-800 text-white"
+        >
+          {[10, 25, 50, 100].map(pageSize => (
+            <option key={pageSize} value={pageSize}>
+              הצג {pageSize}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 };

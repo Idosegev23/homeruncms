@@ -5,7 +5,6 @@ import { PencilSquareIcon, TrashIcon, FunnelIcon, MagnifyingGlassIcon, HomeIcon 
 import { useRouter } from 'next/router';
 import greenApi from '../utils/greenApi';
 
-
 const IndeterminateCheckbox = React.forwardRef(
   ({ indeterminate, ...rest }, ref) => {
     const defaultRef = useRef();
@@ -16,7 +15,7 @@ const IndeterminateCheckbox = React.forwardRef(
     }, [resolvedRef, indeterminate]);
 
     return (
-      <input type="checkbox" ref={resolvedRef} {...rest} />
+      <input type="checkbox" ref={resolvedRef} {...rest} className="form-checkbox text-yellow-500" />
     );
   }
 );
@@ -30,12 +29,12 @@ const FilterPopup = ({ column, setFilter }) => {
   };
 
   return (
-    <div className="p-2 bg-white shadow-lg rounded-lg">
+    <div className="p-2 bg-black shadow-lg rounded-lg">
       <input
         value={value}
         onChange={handleChange}
         placeholder={`סנן ${column.Header}`}
-        className="p-1 border rounded"
+        className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
       />
     </div>
   );
@@ -44,12 +43,12 @@ const FilterPopup = ({ column, setFilter }) => {
 const GlobalFilter = ({ filter, setFilter }) => {
   return (
     <div className="flex items-center">
-      <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 mr-2" />
+      <MagnifyingGlassIcon className="h-5 w-5 text-yellow-500 mr-2" />
       <input
         value={filter || ''}
         onChange={e => setFilter(e.target.value)}
         placeholder="חיפוש גלובלי..."
-        className="p-2 border rounded"
+        className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
       />
     </div>
   );
@@ -68,9 +67,9 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center">
-      <div className="bg-white p-4 rounded-lg max-w-2xl w-full">
-        <h2 className="text-xl mb-4">ערוך לקוח</h2>
+    <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-center">
+      <div className="bg-black p-6 rounded-lg max-w-2xl w-full">
+        <h2 className="text-xl text-yellow-500 mb-4">ערוך לקוח</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <input
@@ -78,21 +77,21 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
               value={editedCustomer.First_name || ''}
               onChange={handleChange}
               placeholder="שם פרטי"
-              className="p-2 border rounded"
+              className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
             />
             <input
               name="Last_name"
               value={editedCustomer.Last_name || ''}
               onChange={handleChange}
               placeholder="שם משפחה"
-              className="p-2 border rounded"
+              className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
             />
             <input
               name="Cell"
               value={editedCustomer.Cell || ''}
               onChange={handleChange}
               placeholder="טלפון"
-              className="p-2 border rounded"
+              className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
             />
             <input
               name="Budget"
@@ -100,7 +99,7 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
               value={editedCustomer.Budget || ''}
               onChange={handleChange}
               placeholder="תקציב"
-              className="p-2 border rounded"
+              className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
             />
             <input
               name="Rooms"
@@ -108,7 +107,7 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
               value={editedCustomer.Rooms || ''}
               onChange={handleChange}
               placeholder="חדרים"
-              className="p-2 border rounded"
+              className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
             />
             <input
               name="Square_meters"
@@ -116,7 +115,7 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
               value={editedCustomer.Square_meters || ''}
               onChange={handleChange}
               placeholder="מ״ר"
-              className="p-2 border rounded"
+              className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
             />
             <input
               name="Preferred_floor"
@@ -124,26 +123,26 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
               value={editedCustomer.Preferred_floor || ''}
               onChange={handleChange}
               placeholder="קומה מועדפת"
-              className="p-2 border rounded"
+              className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
             />
             <input
               name="City"
               value={editedCustomer.City || ''}
               onChange={handleChange}
               placeholder="עיר"
-              className="p-2 border rounded"
+              className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
             />
             <input
               name="Area"
               value={editedCustomer.Area || ''}
               onChange={handleChange}
               placeholder="אזור"
-              className="p-2 border rounded"
+              className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
             />
           </div>
           <div className="flex justify-end">
-            <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded mr-2">שמור</button>
-            <button onClick={onClose} className="px-4 py-2 bg-gray-300 rounded">ביטול</button>
+            <button type="submit" className="px-4 py-2 bg-yellow-500 text-black rounded mr-2">שמור</button>
+            <button onClick={onClose} className="px-4 py-2 bg-gray-300 text-black rounded">ביטול</button>
           </div>
         </form>
       </div>
@@ -218,20 +217,20 @@ const MatchPropertiesModal = ({ customer, properties, onClose, onSendMessage }) 
   }, [properties, searchTerm]);
 
   return (
-      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex justify-center items-start pt-10 z-50">
-        <div className="bg-white p-6 rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col relative">
-          <div className="flex justify-between items-center mb-4 sticky top-0 bg-white z-10 pb-4 border-b">
-          <h2 className="text-xl font-semibold">נכסים מתאימים ל{customer.First_name} {customer.Last_name}</h2>
+      <div className="fixed inset-0 bg-gray-800 bg-opacity-75 overflow-y-auto h-full w-full flex justify-center items-start pt-10 z-50">
+        <div className="bg-black p-6 rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col relative">
+          <div className="flex justify-between items-center mb-4 sticky top-0 bg-black z-10 pb-4 border-b border-yellow-500">
+          <h2 className="text-xl font-semibold text-yellow-500">נכסים מתאימים ל{customer.First_name} {customer.Last_name}</h2>
           <button onClick={onClose} className="text-red-500 text-lg font-bold">&times;</button>
         </div>
 
-        <div className="mb-4 sticky top-16 bg-white z-10 pb-4">
+        <div className="mb-4 sticky top-16 bg-black z-10 pb-4">
           <input
             type="text"
             placeholder="חיפוש לפי כתובת או עיר..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full p-2 border rounded"
+            className="w-full p-2 border border-yellow-500 rounded bg-gray-800 text-white"
           />
         </div>
 
@@ -242,22 +241,22 @@ const MatchPropertiesModal = ({ customer, properties, onClose, onSendMessage }) 
                 key={property.id} 
                 className={`relative border p-4 rounded transition-all cursor-pointer ${
                   selectedProperties.some(p => p.id === property.id)
-                    ? 'bg-blue-200 border-blue-600 shadow-lg' 
-                    : 'hover:bg-gray-100 hover:shadow-md'
+                    ? 'bg-yellow-200 border-yellow-600 shadow-lg' 
+                    : 'hover:bg-gray-700 hover:shadow-md'
                 }`}
                 onClick={() => togglePropertySelection(property)}
               >
                 <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-lg font-bold">{property.street}, {property.city}</h3>
-                  <span className="text-lg font-bold">{property.matchPercentage}% התאמה</span>
+                  <h3 className="text-lg font-bold text-white">{property.street}, {property.city}</h3>
+                  <span className="text-lg font-bold text-yellow-500">{property.matchPercentage}% התאמה</span>
                 </div>
-                <p>מחיר: ₪{property.price ? Number(property.price).toLocaleString() : 'לא זמין'}</p>
-                <p>חדרים: {property.rooms}</p>
-                <p>שטח: {property.square_meters} מ"ר</p>
-                <p>קומה: {property.floor}</p>
+                <p className="text-white">מחיר: ₪{property.price ? Number(property.price).toLocaleString() : 'לא זמין'}</p>
+                <p className="text-white">חדרים: {property.rooms}</p>
+                <p className="text-white">שטח: {property.square_meters} מ"ר</p>
+                <p className="text-white">קומה: {property.floor}</p>
                 {property.unmatchedCriteria.length > 0 && (
                   <div className="mt-2">
-                    <p className="font-bold">אי-התאמות:</p>
+                    <p className="font-bold text-yellow-500">אי-התאמות:</p>
                     <ul className="list-disc list-inside text-sm text-red-600">
                       {property.unmatchedCriteria.map((criteria, index) => (
                         <li key={index}>{criteria}</li>
@@ -266,7 +265,7 @@ const MatchPropertiesModal = ({ customer, properties, onClose, onSendMessage }) 
                   </div>
                 )}
                 {selectedProperties.some(p => p.id === property.id) && (
-                  <div className="absolute inset-0 bg-blue-500 bg-opacity-20 flex justify-center items-center text-green-600 font-bold text-4xl">
+                  <div className="absolute inset-0 bg-yellow-500 bg-opacity-20 flex justify-center items-center text-yellow-600 font-bold text-4xl">
                     ✔️
                   </div>
                 )}
@@ -275,7 +274,7 @@ const MatchPropertiesModal = ({ customer, properties, onClose, onSendMessage }) 
           </div>
         </div>
 
-        <div className="sticky bottom-0 left-0 w-full bg-gray-100 p-4 flex justify-between border-t mt-4">
+        <div className="sticky bottom-0 left-0 w-full bg-gray-800 p-4 flex justify-between border-t border-yellow-500 mt-4">
           <button 
             onClick={onClose}
             className="px-6 py-3 bg-red-500 text-white font-semibold rounded shadow hover:bg-red-600 transition-colors"
@@ -285,7 +284,7 @@ const MatchPropertiesModal = ({ customer, properties, onClose, onSendMessage }) 
           <button 
             onClick={() => onSendMessage(selectedProperties)}
             disabled={selectedProperties.length === 0}
-            className={`px-6 py-3 bg-blue-500 text-white font-semibold rounded shadow hover:bg-blue-600 transition-colors ${selectedProperties.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`px-6 py-3 bg-yellow-500 text-black font-semibold rounded shadow hover:bg-yellow-600 transition-colors ${selectedProperties.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             שלח הודעה עם הנכסים שנבחרו
           </button>
@@ -324,10 +323,10 @@ const CustomerList = () => {
   }, []);
 
   const LoadingIndicator = () => (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-xl">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-        <p className="mt-4 text-lg font-semibold text-gray-700">טוען נתונים...</p>
+    <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-center z-50">
+      <div className="bg-black p-6 rounded-lg shadow-xl">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-yellow-500 mx-auto"></div>
+        <p className="mt-4 text-lg font-semibold text-white">טוען נתונים...</p>
       </div>
     </div>
   );
@@ -362,9 +361,8 @@ const CustomerList = () => {
   };
 
   const handleSendMessage = (selectedProperties) => {
-    // Define selectedCustomerIds by capturing the selected customers
     const selectedCustomerIds = [matchingCustomer.id];
-    const selectedPropertyIds = selectedProperties.map(p => p.id); // Extract IDs of selected properties only
+    const selectedPropertyIds = selectedProperties.map(p => p.id);
     console.log(`Sending message for customer: ${matchingCustomer.First_name} ${matchingCustomer.Last_name}`);
     console.log('Selected properties:', selectedProperties.map(p => `${p.street}, ${p.city} - ₪${p.price.toLocaleString()}`));
   
@@ -372,12 +370,11 @@ const CustomerList = () => {
       pathname: '/send-message',
       query: { 
         source: 'customers', 
-        customerIds: selectedCustomerIds.join(','), // Join the IDs into a comma-separated string
-        propertyIds: selectedPropertyIds.join(',') // Join the property IDs into a comma-separated string
+        customerIds: selectedCustomerIds.join(','), 
+        propertyIds: selectedPropertyIds.join(',') 
       }
     });
   };
-  
 
   const columns = useMemo(
     () => [
@@ -395,7 +392,7 @@ const CustomerList = () => {
       { 
         Header: 'טלפון', 
         accessor: 'Cell', 
-        Cell: ({ value }) => value, // Simply return the value
+        Cell: ({ value }) => value, 
         Filter: FilterPopup 
       },
       { 
@@ -413,7 +410,7 @@ const CustomerList = () => {
         Header: 'פעולות',
         Cell: ({ row }) => (
           <div className="flex space-x-4">
-            <button onClick={() => handleEdit(row.original)} className="p-1 text-blue-500 hover:text-blue-600 transition-colors">
+            <button onClick={() => handleEdit(row.original)} className="p-1 text-yellow-500 hover:text-yellow-600 transition-colors">
               <PencilSquareIcon className="h-5 w-5" />
             </button>
             <button onClick={() => handleMatchProperties(row.original)} className="p-1 text-green-500 hover:text-green-600 transition-colors">
@@ -462,7 +459,7 @@ const CustomerList = () => {
   const { pageIndex, pageSize, globalFilter } = state;
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4 bg-black text-white">
       {isLoading && <LoadingIndicator />}
       <div className="mb-4 flex justify-between items-center">
         <GlobalFilter
@@ -471,15 +468,15 @@ const CustomerList = () => {
         />
         <button 
           onClick={() => setIsFilterOpen(!isFilterOpen)}
-          className="px-4 py-2 bg-gray-200 rounded flex items-center"
+          className="px-4 py-2 bg-yellow-500 text-black rounded flex items-center"
         >
           <FunnelIcon className="h-5 w-5 mr-2" />
           סינון
         </button>
       </div>
       <div className="overflow-x-auto shadow-md sm:rounded-lg">
-        <table {...getTableProps()} className="w-full text-sm text-right text-gray-500">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+        <table {...getTableProps()} className="w-full text-sm text-right text-white bg-gray-800">
+          <thead className="text-xs uppercase bg-gray-700 text-yellow-500">
             {headerGroups.map(headerGroup => (
               <tr {...headerGroup.getHeaderGroupProps()}>
                 {headerGroup.headers.map(column => (
@@ -506,8 +503,8 @@ const CustomerList = () => {
               return (
                 <tr 
                   {...row.getRowProps()} 
-                  className={`bg-white border-b hover:bg-gray-50 ${
-                    row.isSelected ? 'bg-blue-100' : ''
+                  className={`bg-black border-b border-gray-700 hover:bg-gray-700 ${
+                    row.isSelected ? 'bg-gray-900' : ''
                   }`}
                 >
                   {row.cells.map(cell => (
@@ -523,16 +520,16 @@ const CustomerList = () => {
       </div>
       <div className="pagination mt-4 flex justify-between items-center">
         <div>
-          <button onClick={() => gotoPage(0)} disabled={!canPreviousPage} className="px-4 py-2 mr-2 bg-blue-500 text-white rounded disabled:bg-gray-300">
+          <button onClick={() => gotoPage(0)} disabled={!canPreviousPage} className="px-4 py-2 mr-2 bg-yellow-500 text-black rounded disabled:bg-gray-300">
             {'<<'}
           </button>
-          <button onClick={() => previousPage()} disabled={!canPreviousPage} className="px-4 py-2 mr-2 bg-blue-500 text-white rounded disabled:bg-gray-300">
+          <button onClick={() => previousPage()} disabled={!canPreviousPage} className="px-4 py-2 mr-2 bg-yellow-500 text-black rounded disabled:bg-gray-300">
             {'<'}
           </button>
-          <button onClick={() => nextPage()} disabled={!canNextPage} className="px-4 py-2 mr-2 bg-blue-500 text-white rounded disabled:bg-gray-300">
+          <button onClick={() => nextPage()} disabled={!canNextPage} className="px-4 py-2 mr-2 bg-yellow-500 text-black rounded disabled:bg-gray-300">
             {'>'}
           </button>
-          <button onClick={() => gotoPage(pageCount - 1)} disabled={!canNextPage} className="px-4 py-2 mr-2 bg-blue-500 text-white rounded disabled:bg-gray-300">
+          <button onClick={() => gotoPage(pageCount - 1)} disabled={!canNextPage} className="px-4 py-2 mr-2 bg-yellow-500 text-black rounded disabled:bg-gray-300">
             {'>>'}
           </button>
         </div>
@@ -547,7 +544,7 @@ const CustomerList = () => {
           onChange={e => {
             setPageSize(Number(e.target.value));
           }}
-          className="px-2 py-1 border rounded"
+          className="px-2 py-1 border border-yellow-500 rounded bg-gray-800 text-white"
         >
           {[10, 25, 50, 100].map(pageSize => (
             <option key={pageSize} value={pageSize}>

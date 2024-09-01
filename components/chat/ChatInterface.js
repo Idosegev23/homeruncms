@@ -21,7 +21,7 @@ const ChatInterface = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [page, setPage] = useState(1);
   const [chatPage, setChatPage] = useState(1);
-  const [file, setFile] = useState(null); // להוספת תמיכה בקבצים
+  const [file, setFile] = useState(null);
   const chatRef = useRef(null);
 
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -75,7 +75,7 @@ const ChatInterface = () => {
       setChatHistory(prev => [newMessage, ...prev]);
       setMessage('');
 
-      // גלילה לתחתית החלון כדי להציג את ההודעה החדשה
+      // Scroll to the bottom to show the new message
       setTimeout(() => {
         chatRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
@@ -160,17 +160,17 @@ const ChatInterface = () => {
             incomingMessage.mediaUrl = messageData.fileMessageData.downloadUrl;
           }
 
-          // עדכון היסטוריית הצ'אט באופן ישיר
+          // Update chat history directly
           if (selectedCustomer && incomingMessage.chatId === selectedCustomer.chatId) {
             setChatHistory(prevHistory => [incomingMessage, ...prevHistory]);
 
-            // גלילה לתחתית החלון כדי להציג את ההודעה החדשה
+            // Scroll to the bottom to show the new message
             setTimeout(() => {
               chatRef.current?.scrollIntoView({ behavior: 'smooth' });
             }, 100);
           }
 
-          // ניקוי ההתראה
+          // Clear the notification
           await greenApi.deleteNotification(notification.receiptId);
         }
       } catch (error) {
@@ -221,42 +221,57 @@ const ChatInterface = () => {
     setPage(prevPage => prevPage + 1);
   };
 
+  const LoadingIndicator = () => (
+    <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-center z-50">
+      <div className="bg-black p-6 rounded-lg shadow-xl">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-yellow-500 mx-auto"></div>
+        <p className="mt-4 text-lg font-semibold text-white">טוען נתונים...</p>
+      </div>
+    </div>
+  );
+
   return (
     <Layout>
       {isLoading ? (
-        <div className="flex items-center justify-center h-screen" role="status" aria-live="polite">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-            <p className="mt-4 text-xl font-semibold">טוען נתונים...</p>
-          </div>
-        </div>
+        <LoadingIndicator />
       ) : activeCustomers.length > 0 ? (
         <div className="flex h-screen antialiased text-gray-800">
           {/* רשימת לקוחות */}
-          <div className="flex flex-col w-1/4 bg-white p-4 overflow-y-auto">
-            <h2 className="text-lg font-semibold" id="customers-heading">לקוחות פעילים ({activeCustomers.length})</h2>
+          <div className="flex flex-col w-1/4 bg-black p-4 overflow-y-auto">
+            <h2 className="text-lg font-semibold text-yellow-500" id="customers-heading">לקוחות פעילים ({activeCustomers.length})</h2>
             <ul aria-labelledby="customers-heading" role="list">
-              {activeCustomers.slice(0, page * CUSTOMERS_PER_PAGE).map(customer => (
-                <li 
-                  key={customer.id} 
-                  onClick={() => handleCustomerSelect(customer)} 
-                  className={`cursor-pointer hover:bg-gray-200 p-2 flex justify-between items-center ${selectedCustomer?.id === customer.id ? 'bg-blue-100' : ''}`}
-                  role="button"
-                  tabIndex="0"
-                  aria-selected={selectedCustomer?.id === customer.id}
-                >
-                  <div>
-                    <span>{customer.First_name} {customer.Last_name}</span>
-                    <div className="text-sm text-gray-600">
-                      {customer.lastIncomingMessage && `התקבלה: ${customer.lastIncomingMessage.textMessage}`}
-                    </div>
-                  </div>
-                  <span className="text-sm text-gray-600">{customer.Cell}</span>
-                </li>
-              ))}
-            </ul>
+  {activeCustomers.slice(0, page * CUSTOMERS_PER_PAGE).map(customer => (
+    <li 
+      key={customer.id} 
+      onClick={() => handleCustomerSelect(customer)} 
+      className={`cursor-pointer p-2 flex justify-between items-center border border-yellow-500 rounded-lg mb-2 ${
+        selectedCustomer?.id === customer.id 
+          ? 'bg-yellow-500' 
+          : 'bg-black hover:bg-gray-700'
+      }`}
+      role="button"
+      tabIndex="0"
+      aria-selected={selectedCustomer?.id === customer.id}
+    >
+      <div>
+        <span className={`font-semibold ${
+          selectedCustomer?.id === customer.id 
+            ? 'text-black' 
+            : 'text-yellow-500'
+        }`}>
+          {customer.First_name} {customer.Last_name}
+        </span>
+        <div className="text-sm text-white">
+          {customer.lastIncomingMessage && `התקבלה: ${customer.lastIncomingMessage.textMessage}`}
+        </div>
+      </div>
+      <span className="text-sm text-gray-400">{customer.Cell}</span>
+    </li>
+  ))}
+</ul>
+
             {activeCustomers.length > page * CUSTOMERS_PER_PAGE && (
-              <button onClick={handleLoadMore} className="mt-4 bg-blue-500 text-white rounded-lg p-2">
+              <button onClick={handleLoadMore} className="mt-4 bg-black text-yellow-500 rounded-lg p-2">
                 טען עוד לקוחות
               </button>
             )}
@@ -266,9 +281,9 @@ const ChatInterface = () => {
           <div className="flex-grow flex flex-col p-4">
             {selectedCustomer ? (
               <>
-                <div className="flex-grow p-4 bg-gray-100 rounded-lg overflow-y-auto flex flex-col-reverse" ref={chatRef}>
+                <div className="flex-grow p-4 bg-gray-900 rounded-lg overflow-y-auto flex flex-col-reverse" ref={chatRef}>
                   {isLoadingHistory && chatPage === 1 ? (
-                    <div className="text-center">טוען היסטוריה...</div>
+                    <div className="text-center text-yellow-500">טוען היסטוריה...</div>
                   ) : (
                     <>
 {chatHistory.map((msg, index) => (
@@ -333,11 +348,11 @@ const ChatInterface = () => {
                     </>
                   )}
                 </div>
-                <div className="p-4 bg-white flex items-center">
+                <div className="p-4 bg-black flex items-center">
                   <input 
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    className="flex-grow border rounded-lg p-2"
+                    className="flex-grow border border-yellow-500 rounded-lg p-2 bg-gray-800 text-white"
                     placeholder="הקלד הודעה..."
                     onKeyDown={(e) => e.key === 'Enter' ? debouncedSendMessage() : null}
                     aria-label="הקלד הודעה"
@@ -345,12 +360,12 @@ const ChatInterface = () => {
                   <input 
                     type="file" 
                     onChange={handleFileChange} 
-                    className="mr-4 bg-blue-500 text-white rounded-lg p-2"
+                    className="mr-4 bg-yellow-500 text-black rounded-lg p-2"
                   />
                   <button 
                     onClick={debouncedSendMessage} 
                     disabled={isSending}
-                    className={`mr-4 bg-blue-500 text-white rounded-lg p-2 ${isSending ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`mr-4 bg-yellow-500 text-black rounded-lg p-2 ${isSending ? 'opacity-50 cursor-not-allowed' : ''}`}
                     aria-busy={isSending}
                   >
                     שלח
@@ -359,7 +374,7 @@ const ChatInterface = () => {
               </>
             ) : (
               <div className="flex items-center justify-center h-full">
-                <p className="text-xl text-gray-500">בחר לקוח כדי להתחיל שיחה</p>
+                <p className="text-xl text-yellow-500">בחר לקוח כדי להתחיל שיחה</p>
               </div>
             )}
           </div>

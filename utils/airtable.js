@@ -24,6 +24,18 @@ export const fetchCustomers = async () => {
     Area: record.get('Area'),
   }));
 };
+export const createCustomer = async (customerData) => {
+  try {
+    const createdRecords = await base('Customers').create([{ fields: customerData }]);
+    return {
+      id: createdRecords[0].id,
+      ...createdRecords[0].fields
+    };
+  } catch (error) {
+    console.error('Error creating customer:', error);
+    throw error;
+  }
+};
 
 // Fetch all properties from the 'Properties' table
 export const fetchProperties = async () => {
@@ -80,12 +92,30 @@ export const updateProperty = async (property) => {
 export const deleteProperty = async (id) => {
   await base('tbljuncsdRRGyo660').destroy(id);
 };
+export const createProperty = async (propertyData) => {
+  try {
+    const createdRecords = await base('Properties').create([{ fields: propertyData }]);
+    return {
+      id: createdRecords[0].id,
+      ...createdRecords[0].fields
+    };
+  } catch (error) {
+    console.error('Error creating property:', error);
+    throw error;
+  }
+};
+
+// Fetch chat records
 export const fetchChatRecords = async (params = {}) => {
   const records = await base('Chat').select(params).all();
   return records.map(record => ({
     id: record.id,
-    createdTime: record.createdTime,
-    ...record.fields
+    chatid: record.get('chatid'),
+    First_name: record.get('First_name'),
+    Last_name: record.get('Last_name'),
+    cell: record.get('cell'),
+    customerId: record.get('customerId'),
+    chat_history: parseChatHistoryFromAirtable(record.get('chat_history'))
   }));
 };
 
@@ -94,8 +124,12 @@ export const fetchChatRecord = async (recordId) => {
   const record = await base('Chat').find(recordId);
   return {
     id: record.id,
-    createdTime: record.createdTime,
-    ...record.fields
+    chatid: record.get('chatid'),
+    First_name: record.get('First_name'),
+    Last_name: record.get('Last_name'),
+    cell: record.get('cell'),
+    customerId: record.get('customerId'),
+    chat_history: parseChatHistoryFromAirtable(record.get('chat_history'))
   };
 };
 
@@ -104,8 +138,8 @@ export const createChatRecords = async (records) => {
   const createdRecords = await base('Chat').create(records);
   return createdRecords.map(record => ({
     id: record.id,
-    createdTime: record.createdTime,
-    fields: record.fields
+    ...record.fields,
+    chat_history: parseChatHistoryFromAirtable(record.fields.chat_history)
   }));
 };
 
@@ -114,8 +148,8 @@ export const updateChatRecords = async (records) => {
   const updatedRecords = await base('Chat').update(records);
   return updatedRecords.map(record => ({
     id: record.id,
-    createdTime: record.createdTime,
-    fields: record.fields
+    ...record.fields,
+    chat_history: parseChatHistoryFromAirtable(record.fields.chat_history)
   }));
 };
 
@@ -126,4 +160,95 @@ export const deleteChatRecords = async (recordIds) => {
     id: record.id,
     deleted: true
   }));
+};
+
+// פונקציה לשמירת היסטוריית צ'אט עבור לקוח מסוים
+export const saveChatHistory = async (customerId, chatHistory) => {
+  try {
+    const existingRecords = await base('Chat').select({
+      filterByFormula: `{customerId} = '${customerId}'`
+    }).firstPage();
+
+    const formattedChatHistory = formatChatHistoryForAirtable(chatHistory);
+
+    if (existingRecords.length > 0) {
+      // עדכון הרשומה הקיימת
+      const updatedRecord = await base('Chat').update(existingRecords[0].id, {
+        chat_history: formattedChatHistory
+      });
+      return {
+        id: updatedRecord.id,
+        ...updatedRecord.fields,
+        chat_history: parseChatHistoryFromAirtable(updatedRecord.fields.chat_history)
+      };
+    } else {
+      // יצירת רשומה חדשה אם לא קיימת
+      const createdRecord = await base('Chat').create({
+        customerId: customerId,
+        chat_history: formattedChatHistory
+      });
+      return {
+        id: createdRecord.id,
+        ...createdRecord.fields,
+        chat_history: parseChatHistoryFromAirtable(createdRecord.fields.chat_history)
+      };
+    }
+  } catch (error) {
+    console.error('Error saving chat history:', error);
+    throw error;
+  }
+};
+
+// פונקציה לאחזור היסטוריית צ'אט עבור לקוח מסוים
+export const fetchChatHistory = async (customerId) => {
+  try {
+    const records = await base('Chat').select({
+      filterByFormula: `{customerId} = '${customerId}'`
+    }).firstPage();
+
+    if (records.length > 0) {
+      const chatHistory = parseChatHistoryFromAirtable(records[0].get('chat_history'));
+      return chatHistory;
+    } else {
+      console.warn('No chat history found for customerId:', customerId);
+      return [];
+    }
+  } catch (error) {
+    console.error('Error fetching chat history:', error);
+    throw error;
+  }
+};
+
+// פונקציה עזר לפורמט היסטוריית הצ'אט לפורמט של Airtable
+const formatChatHistoryForAirtable = (chatHistory) => {
+  return [{
+    type: "paragraph",
+    value: chatHistory.map(message => ({
+      type: "paragraphLine",
+      value: [{
+        type: "text",
+        value: JSON.stringify(message)
+      }]
+    }))
+  }];
+};
+
+// פונקציה עזר לפענוח היסטוריית הצ'אט מהפורמט של Airtable
+const parseChatHistoryFromAirtable = (airtableChatHistory) => {
+  if (!airtableChatHistory || !Array.isArray(airtableChatHistory)) {
+    return [];
+  }
+  
+  return airtableChatHistory
+    .flatMap(paragraph => paragraph.value)
+    .flatMap(line => line.value)
+    .map(text => {
+      try {
+        return JSON.parse(text.value);
+      } catch (error) {
+        console.error('Error parsing chat message:', error);
+        return null;
+      }
+    })
+    .filter(message => message !== null);
 };

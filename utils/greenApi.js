@@ -323,7 +323,6 @@ const greenApi = {
   formatPhoneNumber,
   processQueue,
   chatId,
-  getMessage,
   clearCache: () => {
     cache = {
       incomingMessages: null,
