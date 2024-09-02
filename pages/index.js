@@ -1,8 +1,7 @@
 import Layout from '../components/Layout';
 import { useEffect, useState } from 'react';
-import { fetchCustomers, fetchProperties, checkAuthentication } from '../utils/airtable';
+import { fetchCustomers, fetchProperties } from '../utils/airtable';
 import greenApi from '../utils/greenApi';
-import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
 
 const CustomIcon = ({ svgPath }) => (
@@ -44,7 +43,6 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
-  const router = useRouter();
 
   const quotes = [
     "הצלחה לא נמדדת בכמה גבוה הגעת, אלא בכמה רחוק הגעת מהמקום שבו התחלת.",
@@ -90,13 +88,8 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    const token = checkAuthentication();
-    if (!token) {
-      router.push('/auth');
-    } else {
-      loadData();
-    }
-  }, [router]);
+    loadData(); // טוען את הנתונים ישירות ללא בדיקת אימות
+  }, []);
 
   const handleRefresh = async () => {
     greenApi.clearCache();
@@ -105,7 +98,7 @@ export default function Dashboard() {
 
   const cardData = [
     { title: "סה\"כ נכסים", value: data.properties, color: "border-yellow-500", icon: <CustomIcon svgPath="M3 10h2l1 2h14l1-2h2M7 10V7a1 1 0 011-1h8a1 1 0 011 1v3M7 21h10v-3a1 1 0 00-1-1H8a1 1 0 00-1 1v3zM5 10v10a1 1 0 001 1h12a1 1 0 001-1V10" /> },
-    { title: "סה\"כ לקוחות", value: data.clients, color: "border-yellow-500", icon: <CustomIcon svgPath="M16 11c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2v3h-4v-3c0-1.1-.9-2-2-2s-2 .9-2 2v3H5v-3c0-1.66 1.34-3 3-3h8c1.66 0 3 1.34 3 3v3h-3v-3c0-1.1-.9-2-2-2z" /> },
+    { title: "סה\"כ לקוחות", value: data.clients, color: "border-yellow-500", icon: <CustomIcon svgPath="M16 11c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM16 13c-1.1 0-2 .9-2 2v3h-4v-3c0-1.1-.9-2-2-2s-2 .9-2 2v3H5v-3c0-1.66 1.34-3 3-3h8c1.66 0 3 1.34 3 3v3h-3v-3c0-1.1-.9-2-2-2z" /> },
     { title: "הודעות שנשלחו ב-24 שעות האחרונות", value: data.sentMessages, color: "border-yellow-500", icon: <CustomIcon svgPath="M8 10h.01M12 10h.01M16 10h.01M21 16c0 .88-.39 1.67-1 2.22V19a1 1 0 01-1 1H5a1 1 0 01-1-1v-.78A2.99 2.99 0 013 16V7a1 1 0 011-1h16a1 1 0 011 1v9z" /> },
     { title: "הודעות שנכנסו ב-24 שעות האחרונות", value: data.incomingMessages, color: "border-yellow-500", icon: <CustomIcon svgPath="M13 16h-1v-4h-1m1-4h.01M21 12c0 4.418-3.582 8-8 8a8 8 0 110-16c4.418 0 8 3.582 8 8z" /> },
   ];
