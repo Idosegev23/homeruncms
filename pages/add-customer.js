@@ -21,10 +21,19 @@ const AddCustomer = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prevState => ({
-      ...prevState,
-      [name]: value
-    }));
+    if (name === 'Budget') {
+      // Remove non-digit characters and format with commas
+      const formattedValue = value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      setFormData(prevState => ({
+        ...prevState,
+        [name]: formattedValue
+      }));
+    } else {
+      setFormData(prevState => ({
+        ...prevState,
+        [name]: value
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -32,7 +41,12 @@ const AddCustomer = () => {
     setError('');
 
     try {
-      await createCustomer(formData);
+      // Remove commas from Budget before sending to API
+      const submissionData = {
+        ...formData,
+        Budget: formData.Budget.replace(/,/g, '')
+      };
+      await createCustomer(submissionData);
       router.push('/customers');
     } catch (err) {
       setError('שגיאה בהוספת לקוח. נא לנסות שוב.');
@@ -86,7 +100,7 @@ const AddCustomer = () => {
           <div>
             <label className="block text-yellow-500 mb-2">תקציב</label>
             <input
-              type="number"
+              type="text"
               name="Budget"
               value={formData.Budget}
               onChange={handleChange}

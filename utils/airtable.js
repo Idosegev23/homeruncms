@@ -18,114 +18,137 @@ export const checkEmailExists = async (email) => {
     'meirbs.homerun@gmail.com',
     'shimi.homerun@gmail.com',
     'triroars@gmail.com'
-
   ];
 
-  if (!allowedEmails.includes(email)) {
-    throw new Error('Email not allowed');
+  if (!allowedEmails.includes(email.toLowerCase())) {
+    throw new Error('האימייל אינו מורשה');
   }
 
   const records = await base('Users').select({
-    filterByFormula: `{fldh8OkswJptJbmPJ} = '${email}'`,
+    filterByFormula: `LOWER({Email}) = '${email.toLowerCase()}'`,
   }).firstPage();
 
   if (!records || records.length === 0) {
     return false;
   }
 
-  return records[0].get('fldig8IORj70XwWTV') !== '';
+  return records[0].get('Password') !== '';
 };
+
+
 
 export const setPasswordForEmail = async ({ email, password }) => {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   const records = await base('Users').select({
-    filterByFormula: `{fldh8OkswJptJbmPJ} = '${email}'`,
+    filterByFormula: `LOWER({Email}) = '${email.toLowerCase()}'`,
   }).firstPage();
 
   let userId;
   if (records && records.length > 0) {
     await base('Users').update(records[0].id, {
-      fldig8IORj70XwWTV: hashedPassword,
+      Password: hashedPassword,
     });
     userId = records[0].id;
   } else {
     const createdRecord = await base('Users').create([
       {
         fields: {
-          fldh8OkswJptJbmPJ: email,
-          fldig8IORj70XwWTV: hashedPassword,
+          Email: email.toLowerCase(),
+          Password: hashedPassword,
         },
       },
     ]);
     userId = createdRecord[0].id;
   }
 
-  return { id: userId, email };
+  return { id: userId, email: email.toLowerCase() };
 };
+
 
 export const authenticateUser = async ({ email, password }) => {
   const records = await base('Users').select({
-    filterByFormula: `{fldh8OkswJptJbmPJ} = '${email}'`,
+    filterByFormula: `LOWER({Email}) = '${email.toLowerCase()}'`,
   }).firstPage();
 
   if (!records || records.length === 0) {
-    throw new Error('User not found');
+    throw new Error('המשתמש לא נמצא');
   }
 
   const user = records[0];
-  const validPassword = await bcrypt.compare(password, user.get('fldig8IORj70XwWTV'));
+  const storedPassword = user.get('Password');
+
+  if (!storedPassword) {
+    throw new Error('סיסמה לא הוגדרה עבור משתמש זה');
+  }
+
+  const validPassword = await bcrypt.compare(password, storedPassword);
 
   if (!validPassword) {
-    throw new Error('Invalid password');
+    throw new Error('סיסמה שגויה');
   }
 
   return {
     id: user.id,
-    email: user.get('fldh8OkswJptJbmPJ'),
+    email: user.get('Email').toLowerCase(),
   };
 };
 
 export const handleAuthFlow = async (email, password, confirmPassword, step) => {
+  if (!email || typeof email !== 'string') {
+    throw new Error('כתובת אימייל לא תקינה');
+  }
+
+  if (!step || typeof step !== 'string') {
+    throw new Error('שלב לא תקין');
+  }
+
   if (step === 'email') {
     const hasPassword = await checkEmailExists(email);
     return { step: hasPassword ? 'login' : 'setPassword' };
-  } else if (step === 'setPassword') {
-    if (password !== confirmPassword) {
-      throw new Error('Passwords do not match');
-    }
-    const user = await setPasswordForEmail({ email, password });
-    const tokenResponse = await fetch('/api/auth', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ userId: user.id, email: user.email }),
-    });
-    const { token } = await tokenResponse.json();
-    return { ...user, token };
   } else if (step === 'login') {
-    const user = await authenticateUser({ email, password });
-    const tokenResponse = await fetch('/api/auth', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ userId: user.id, email: user.email }),
-    });
-    const { token } = await tokenResponse.json();
-    return { ...user, token };
+    if (!password || typeof password !== 'string') {
+      throw new Error('סיסמה לא תקינה');
+    }
+    try {
+      const user = await authenticateUser({ email, password });
+      const tokenResponse = await fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id, email: user.email }),
+      });
+      const { token } = await tokenResponse.json();
+      return { ...user, token };
+    } catch (error) {
+      console.error('Authentication error:', error);
+      throw new Error(error.message || 'שגיאה באימות. אנא נסה שנית.');
+    }
   } else {
-    throw new Error('Invalid step');
+    throw new Error('שלב לא חוקי');
   }
 };
 export const checkAuthentication = () => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('authToken');
-    return token;
+    if (token) {
+      try {
+        // בדיקה בסיסית של תוקף הטוקן
+        const decodedToken = jwt.decode(token);
+        if (decodedToken && decodedToken.exp * 1000 > Date.now()) {
+          return token;
+        }
+      } catch (error) {
+        console.error('Error decoding token:', error);
+      }
+    }
+    // אם הגענו לכאן, הטוקן לא תקין או לא קיים
+    localStorage.removeItem('authToken'); // מסיר טוקן לא תקין
   }
   return null;
 };
+
 
 // Fetch all customers from the 'Customers' table
 export const fetchCustomers = async () => {
@@ -159,7 +182,23 @@ export const createCustomer = async (customerData) => {
 // Fetch all properties from the 'Properties' table
 export const fetchProperties = async () => {
   const records = await base('Properties').select({
-    fields: ['price', 'rooms', 'square_meters', 'floor', 'city', 'street', 'imageurl'],
+    fields: [
+      'price', 
+      'rooms', 
+      'square_meters', 
+      'floor', 
+      'max_floor',
+      'street', 
+      'Elevator',
+      'parking',
+      'saferoom',
+      'condition',
+      'potential',
+      'Balcony',
+      'airways',
+      'balcony_size',
+      'imageurl'
+    ],
   }).all();
 
   return records.map(record => ({
@@ -168,12 +207,19 @@ export const fetchProperties = async () => {
     rooms: record.get('rooms'),
     square_meters: record.get('square_meters'),
     floor: record.get('floor'),
-    city: record.get('city'),
+    max_floor: record.get('max_floor'),
     street: record.get('street'),
+    Elevator: record.get('Elevator'),
+    parking: record.get('parking'),
+    saferoom: record.get('saferoom'),
+    condition: record.get('condition'),
+    potential: record.get('potential'),
+    Balcony: record.get('Balcony'),
+    airways: record.get('airways'),
+    balcony_size: record.get('balcony_size'),
     imageurl: record.get('imageurl'),
   }));
 };
-
 // Function to get relevant properties for a customer
 export const getRelevantProperties = (customer, properties = []) => {
   if (!properties || !Array.isArray(properties)) {
@@ -203,26 +249,26 @@ export const deleteCustomer = async (id) => {
 // Update a property in the 'Properties' table
 export const updateProperty = async (property) => {
   const { id, ...fields } = property;
-  await base('tbljuncsdRRGyo660').update(id, fields);
+  await base('Properties').update(id, fields);
   return property;
 };
 
 // Delete a property from the 'Properties' table
 export const deleteProperty = async (id) => {
-  await base('tbljuncsdRRGyo660').destroy(id);
+  await base('Properties').destroy(id);
 };
 export const createProperty = async (propertyData) => {
+  console.log('Sending request to Airtable with data:', propertyData);
   try {
-    const createdRecords = await base('Properties').create([{ fields: propertyData }]);
-    return {
-      id: createdRecords[0].id,
-      ...createdRecords[0].fields
-    };
+    const createdRecord = await base('Properties').create(propertyData);
+    console.log('Airtable response:', createdRecord);
+    return createdRecord;
   } catch (error) {
-    console.error('Error creating property:', error);
+    console.error('Airtable error:', error);
     throw error;
   }
 };
+
 
 // Fetch chat records
 export const fetchChatRecords = async (params = {}) => {

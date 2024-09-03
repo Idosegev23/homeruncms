@@ -125,13 +125,7 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
               placeholder="קומה מועדפת"
               className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
             />
-            <input
-              name="City"
-              value={editedCustomer.City || ''}
-              onChange={handleChange}
-              placeholder="עיר"
-              className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
-            />
+            
             <input
               name="Area"
               value={editedCustomer.Area || ''}
@@ -160,7 +154,7 @@ const MatchPropertiesModal = ({ customer, properties, onClose, onSendMessage }) 
     const otherCriteriaWeight = 0.3;
 
     // Budget calculation
-    const maxPropertyPrice = customer.Budget * 1.15;
+    const maxPropertyPrice = customer.Budget * 1.10;
     const minPropertyPrice = customer.Budget - 1000000;
     if (property.price <= maxPropertyPrice && property.price >= minPropertyPrice) {
       matchScore += budgetWeight;
@@ -169,7 +163,7 @@ const MatchPropertiesModal = ({ customer, properties, onClose, onSendMessage }) 
     }
 
     // Other criteria
-    const otherCriteria = ['Rooms', 'Square_meters', 'Preferred_floor', 'City', 'Area'];
+    const otherCriteria = ['Rooms', 'Square_meters', 'Preferred_floor', 'Area'];
     const criteriaMatchCount = otherCriteria.filter(criteria => 
       customer[criteria] === property[criteria.toLowerCase()]
     ).length;
@@ -184,7 +178,6 @@ const MatchPropertiesModal = ({ customer, properties, onClose, onSendMessage }) 
       { name: 'חדרים', customerValue: customer.Rooms, propertyValue: property.rooms },
       { name: 'שטח', customerValue: customer.Square_meters, propertyValue: property.square_meters },
       { name: 'קומה', customerValue: customer.Preferred_floor, propertyValue: property.floor },
-      { name: 'עיר', customerValue: customer.City, propertyValue: property.city },
       { name: 'אזור', customerValue: customer.Area, propertyValue: property.area },
     ];
 

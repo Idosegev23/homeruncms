@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { fetchProperties, fetchCustomers, fetchChatRecords, createChatRecords } from '../utils/airtable';
 import Layout from '../components/Layout';
@@ -19,15 +19,20 @@ const SendMessage = () => {
   const [sendingFeedback, setSendingFeedback] = useState("");
   const [isFromPropertiesPage, setIsFromPropertiesPage] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMedia, setSelectedMedia] = useState(null);
+  const [mediaPreview, setMediaPreview] = useState(null);
+  const fileInputRef = useRef(null);
 
   const customerTags = [
     '{{שם פרטי}}', '{{שם משפחה}}', '{{טלפון}}', '{{תקציב}}',
-    '{{חדרים}}', '{{מטר רבוע}}', '{{קומה מועדפת}}', '{{עיר}}', '{{אזור}}'
+    '{{חדרים}}', '{{מטר רבוע}}', '{{קומה מועדפת}}', '{{אזור}}'
   ];
 
   const propertyTags = [
     '{{מחיר נכס}}', '{{חדרים בנכס}}', '{{מ"ר בנכס}}', '{{קומה בנכס}}',
-    '{{עיר בנכס}}', '{{רחוב בנכס}}'
+    '{{קומה מקסימלית בנכס}}', '{{רחוב בנכס}}', '{{מעלית}}',
+    '{{חניה}}', '{{ממ"ד}}', '{{מצב הנכס}}', '{{פוטנציאל תמ"א}}', '{{מרפסת}}',
+    '{{מיזוג אוויר}}', '{{קמפיין}}','{{מ״ר מרפסת}}'
   ];
 
   useEffect(() => {
@@ -105,14 +110,25 @@ const SendMessage = () => {
     setSearchQuery(e.target.value.toLowerCase());
   };
 
-  const LoadingIndicator = () => (
-    <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-center z-50">
-      <div className="bg-black p-6 rounded-lg shadow-xl">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-yellow-500 mx-auto"></div>
-        <p className="mt-4 text-lg font-semibold text-white">טוען נתונים...</p>
-      </div>
-    </div>
-  );
+  const handleMediaSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setSelectedMedia(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setMediaPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeSelectedMedia = () => {
+    setSelectedMedia(null);
+    setMediaPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const filteredCustomers = customers.filter(customer => {
     const firstName = customer.First_name || '';
@@ -136,6 +152,46 @@ const SendMessage = () => {
     setMessage(prev => prev + " " + tag);
   };
 
+  const generatePersonalizedMessage = (customer, property) => {
+    return message
+      .replace(/{{שם פרטי}}/g, customer.First_name)
+      .replace(/{{שם משפחה}}/g, customer.Last_name)
+      .replace(/{{טלפון}}/g, customer.Cell)
+      .replace(/{{תקציב}}/g, customer.Budget)
+      .replace(/{{חדרים}}/g, customer.Rooms)
+      .replace(/{{מטר רבוע}}/g, customer.Square_meters)
+      .replace(/{{קומה מועדפת}}/g, customer.Preferred_floor)
+      .replace(/{{אזור}}/g, customer.Area)
+      .replace(/{{מחיר נכס}}/g, property.price)
+      .replace(/{{חדרים בנכס}}/g, property.rooms)
+      .replace(/{{מ"ר בנכס}}/g, property.square_meters)
+      .replace(/{{קומה בנכס}}/g, property.floor)
+      .replace(/{{קומה מקסימלית בנכס}}/g, property.max_floor)
+      .replace(/{{רחוב בנכס}}/g, property.street)
+      .replace(/{{מעלית}}/g, property.Elevator)
+      .replace(/{{חניה}}/g, property.parking)
+      .replace(/{{ממ"ד}}/g, property.saferoom)
+      .replace(/{{מצב הנכס}}/g, property.condition)
+      .replace(/{{פוטנציאל תמ"א}}/g, property.potential)
+      .replace(/{{מרפסת}}/g, property.Balcony)
+      .replace(/{{מיזוג אוויר}}/g, property.airways)
+      .replace(/{{מ״ר מרפסת}}/g, property.balcony_size)
+      .replace(/{{קמפיין}}/g, property.Campaigns);
+  };
+
+  const sendMediaMessage = async (chatId, caption) => {
+    if (!selectedMedia) return;
+
+    try {
+      const result = await greenApi.sendFile(chatId, selectedMedia, selectedMedia.name, caption);
+      console.log(`Media sent successfully for ${chatId}:`, result);
+      return result;
+    } catch (error) {
+      console.error('Failed to send media:', error);
+      throw error;
+    }
+  };
+
   const handleSendMessage = async () => {
     setSending(true);
     setSendingFeedback("מעבד הודעות...");
@@ -144,30 +200,48 @@ const SendMessage = () => {
     let failCount = 0;
     let queuedCount = 0;
 
-    const messages = selectedCustomers.flatMap(customer => 
-      selectedProperties.map(property => ({
-        chatId: greenApi.formatPhoneNumber(customer.Cell),
-        message: generatePersonalizedMessage(customer, property),
-        customerName: `${customer.First_name} ${customer.Last_name}`,
-        customerId: customer.id
-      }))
-    );
+    for (const customer of selectedCustomers) {
+      const chatId = greenApi.formatPhoneNumber(customer.Cell);
+      let fullMessage = '';
 
-    for (let i = 0; i < messages.length; i++) {
-      try {
-        const result = await greenApi.sendMessage(messages[i].chatId, messages[i].message);
-        if (result.status === 'queued') {
-          queuedCount++;
-        } else {
-          successCount++;
+      for (let i = 0; i < selectedProperties.length; i++) {
+        const property = selectedProperties[i];
+        const propertyMessage = generatePersonalizedMessage(customer, property);
+        fullMessage += propertyMessage;
+
+        if (i < selectedProperties.length - 1) {
+          fullMessage += '\n\n_____\n\n';
         }
-        console.log(`Message ${result.status} for ${messages[i].customerName}`);
-      } catch (error) {
-        console.error(`Failed to send message to ${messages[i].customerName}:`, error);
-        failCount++;
+
+        if (isFromPropertiesPage && selectedMedia) {
+          try {
+            await sendMediaMessage(chatId, fullMessage);
+            console.log(`Media sent for property: ${property.street}, ${property.city}`);
+            fullMessage = ''; // Reset fullMessage after sending media with caption
+          } catch (error) {
+            console.error(`Failed to send media for property: ${property.street}, ${property.city}`, error);
+          }
+        }
       }
 
-      if (i < messages.length - 1) {
+      // Send text message if there's any remaining message content
+      if (fullMessage) {
+        try {
+          const result = await greenApi.sendMessage(chatId, fullMessage);
+          if (result.status === 'queued') {
+            queuedCount++;
+          } else {
+            successCount++;
+          }
+          console.log(`Message ${result.status} for ${customer.First_name} ${customer.Last_name}`);
+        } catch (error) {
+          console.error(`Failed to send message to ${customer.First_name} ${customer.Last_name}:`, error);
+          failCount++;
+        }
+      }
+
+      // Wait for 15 seconds between messages
+      if (selectedCustomers.indexOf(customer) < selectedCustomers.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 15000));
       }
     }
@@ -181,25 +255,6 @@ const SendMessage = () => {
     }
   };
 
-  const generatePersonalizedMessage = (customer, property) => {
-    return message
-      .replace(/{{שם פרטי}}/g, customer.First_name)
-      .replace(/{{שם משפחה}}/g, customer.Last_name)
-      .replace(/{{טלפון}}/g, customer.Cell)
-      .replace(/{{תקציב}}/g, customer.Budget)
-      .replace(/{{חדרים}}/g, customer.Rooms)
-      .replace(/{{מטר רבוע}}/g, customer.Square_meters)
-      .replace(/{{קומה מועדפת}}/g, customer.Preferred_floor)
-      .replace(/{{עיר}}/g, customer.City)
-      .replace(/{{אזור}}/g, customer.Area)
-      .replace(/{{מחיר נכס}}/g, property.price)
-      .replace(/{{חדרים בנכס}}/g, property.rooms)
-      .replace(/{{מ"ר בנכס}}/g, property.square_meters)
-      .replace(/{{קומה בנכס}}/g, property.floor)
-      .replace(/{{עיר בנכס}}/g, property.city)
-      .replace(/{{רחוב בנכס}}/g, property.street);
-  };
-
   useEffect(() => {
     if (selectedCustomers.length > 0 && selectedProperties.length > 0) {
       const previewCustomer = selectedCustomers[0];
@@ -211,7 +266,12 @@ const SendMessage = () => {
   if (loading) {
     return (
       <Layout>
-        <LoadingIndicator />
+        <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-center z-50">
+          <div className="bg-black p-6 rounded-lg shadow-xl">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-yellow-500 mx-auto"></div>
+            <p className="mt-4 text-lg font-semibold text-white">טוען נתונים...</p>
+          </div>
+        </div>
       </Layout>
     );
   }
@@ -295,6 +355,23 @@ const SendMessage = () => {
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="הקלד כאן את ההודעה שלך..."
               />
+              {isFromPropertiesPage && (
+               <div className="mb-4">
+               <h3 className="text-lg font-bold mb-2 text-yellow-500">הוספת מדיה</h3>
+               <div className="relative inline-block">
+                 <button 
+                   className="px-4 py-2 bg-blue-500 text-white rounded-lg opacity-50 cursor-not-allowed transition duration-300"
+                   disabled
+                 >
+                   בחר תמונה/וידאו
+                 </button>
+                 <span className="absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2 bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full animate-pulse">
+                   בבנייה
+                 </span>
+               </div>
+             </div>
+             
+              )}
               <div className="mb-4">
                 <h3 className="text-lg font-bold mb-2 text-yellow-500">תגיות לקוח</h3>
                 <div className="flex flex-wrap gap-2 mb-4">

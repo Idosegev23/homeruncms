@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { Mail, Lock } from 'lucide-react';
-import { handleAuthFlow } from '../utils/airtable';
+import { handleAuthFlow, checkAuthentication } from '../utils/airtable';
 
 export default function Auth() {
   const [step, setStep] = useState('email');
@@ -11,39 +11,16 @@ export default function Auth() {
   const [error, setError] = useState('');
   const router = useRouter();
 
-  const validatePassword = (password) => {
-    const minLength = 8;
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasNumber = /\d/.test(password);
-    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-
-    if (password.length < minLength) {
-      return 'הסיסמה חייבת להכיל לפחות 8 תווים.';
+  useEffect(() => {
+    const token = checkAuthentication();
+    if (token) {
+      router.push('/');
     }
-    if (!hasUpperCase || !hasLowerCase) {
-      return 'הסיסמה חייבת להכיל אותיות גדולות וקטנות.';
-    }
-    if (!hasNumber) {
-      return 'הסיסמה חייבת להכיל לפחות מספר אחד.';
-    }
-    if (!hasSpecialChar) {
-      return 'הסיסמה חייבת להכיל לפחות תו מיוחד אחד.';
-    }
-    return null;
-  };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
-    if (step === 'setPassword' || step === 'login') {
-      const passwordError = validatePassword(password);
-      if (passwordError) {
-        setError(passwordError);
-        return;
-      }
-    }
 
     try {
       const result = await handleAuthFlow(email, password, confirmPassword, step);
@@ -55,9 +32,10 @@ export default function Auth() {
       }
     } catch (error) {
       console.error('Auth error:', error);
-      setError(error instanceof Error ? error.message : 'An unexpected error occurred');
+      setError(error instanceof Error ? error.message : 'אירעה שגיאה בלתי צפויה. נסה שוב מאוחר יותר.');
     }
   };
+
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-black">
@@ -72,7 +50,7 @@ export default function Auth() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email"
+                  placeholder="אימייל"
                   className="w-full p-2 bg-transparent border-b border-yellow-500 text-yellow-500 outline-none"
                   required
                   autoComplete="username"
@@ -92,7 +70,7 @@ export default function Auth() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
+                  placeholder="סיסמה"
                   className="w-full p-2 bg-transparent border-b border-yellow-500 text-yellow-500 outline-none"
                   required
                   autoComplete={step === 'setPassword' ? 'new-password' : 'current-password'}
@@ -105,7 +83,7 @@ export default function Auth() {
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm Password"
+                    placeholder="אימות סיסמה"
                     className="w-full p-2 bg-transparent border-b border-yellow-500 text-yellow-500 outline-none"
                     required
                     autoComplete="new-password"

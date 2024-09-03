@@ -69,7 +69,7 @@ const PropertyList = () => {
       const customerBudget = customer.Budget;
   
       return (customerBudget <= propertyPrice + 1000000) && 
-             (customerBudget >= propertyPrice * 0.85);
+             (customerBudget >= propertyPrice * 0.90);
     });
   
     router.push({
@@ -80,17 +80,20 @@ const PropertyList = () => {
 
   const columns = useMemo(
     () => [
-      { Header: 'רחוב', accessor: 'street' },
-      { 
-        Header: 'מחיר', 
-        accessor: 'price', 
-        Cell: ({ value }) => `₪${value?.toLocaleString() || ''}`,
-      },
+      { Header: 'מחיר', accessor: 'price', Cell: ({ value }) => `₪${value?.toLocaleString() || ''}` },
       { Header: 'חדרים', accessor: 'rooms' },
       { Header: 'מ"ר', accessor: 'square_meters' },
       { Header: 'קומה', accessor: 'floor' },
-      { Header: 'עיר', accessor: 'city' },
-      { Header: 'אזור', accessor: 'area' },
+      { Header: 'קומה מקסימלית', accessor: 'max_floor' },
+      { Header: 'רחוב', accessor: 'street' },
+      { Header: 'מעלית', accessor: 'Elevator' },
+      { Header: 'חניה', accessor: 'parking' },
+      { Header: 'ממ"ד', accessor: 'saferoom' },
+      { Header: 'מצב', accessor: 'condition' },
+      { Header: 'פוטנציאל תמא', accessor: 'potential' },
+      { Header: 'מרפסת', accessor: 'Balcony' },
+      { Header: 'כיווני אוויר', accessor: 'airways' },
+      { Header: 'גודל מרפסת', accessor: 'balcony_size' },
       {
         Header: 'פעולות',
         Cell: ({ row }) => (

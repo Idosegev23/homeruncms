@@ -1,8 +1,9 @@
 import Layout from '../components/Layout';
 import { useEffect, useState } from 'react';
-import { fetchCustomers, fetchProperties } from '../utils/airtable';
+import { fetchCustomers, fetchProperties, checkAuthentication } from '../utils/airtable';
 import greenApi from '../utils/greenApi';
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/router';
 
 const CustomIcon = ({ svgPath }) => (
   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -43,6 +44,7 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
+  const router = useRouter();
 
   const quotes = [
     "הצלחה לא נמדדת בכמה גבוה הגעת, אלא בכמה רחוק הגעת מהמקום שבו התחלת.",
@@ -88,7 +90,12 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    loadData(); // טוען את הנתונים ישירות ללא בדיקת אימות
+    const token = checkAuthentication();
+    if (!token) {
+      router.push('/auth');
+    } else {
+      loadData();
+    }
   }, []);
 
   const handleRefresh = async () => {
