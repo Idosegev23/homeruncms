@@ -142,10 +142,7 @@ const SendMessage = () => {
 
   const filteredProperties = properties.filter(property => {
     const street = property.street || '';
-    const city = property.city || '';
-
-    return street.toLowerCase().includes(searchQuery) ||
-           city.toLowerCase().includes(searchQuery);
+    return street.toLowerCase().includes(searchQuery);
   });
 
   const handleTagClick = (tag) => {
@@ -172,7 +169,7 @@ const SendMessage = () => {
       .replace(/{{חניה}}/g, property.parking)
       .replace(/{{ממ"ד}}/g, property.saferoom)
       .replace(/{{מצב הנכס}}/g, property.condition)
-      .replace(/{{פוטנציאל תמ"א}}/g, property.potential)
+      .replace(/{{פוטנציאל תמ"א}}/g, property.TMA_potential)
       .replace(/{{מרפסת}}/g, property.Balcony)
       .replace(/{{מיזוג אוויר}}/g, property.airways)
       .replace(/{{מ״ר מרפסת}}/g, property.balcony_size)
@@ -216,10 +213,10 @@ const SendMessage = () => {
         if (isFromPropertiesPage && selectedMedia) {
           try {
             await sendMediaMessage(chatId, fullMessage);
-            console.log(`Media sent for property: ${property.street}, ${property.city}`);
+            console.log(`Media sent for property: ${property.street}`);
             fullMessage = ''; // Reset fullMessage after sending media with caption
           } catch (error) {
-            console.error(`Failed to send media for property: ${property.street}, ${property.city}`, error);
+            console.error(`Failed to send media for property: ${property.street}`, error);
           }
         }
       }
@@ -281,7 +278,7 @@ const SendMessage = () => {
       <div className="container mx-auto p-8 bg-black rounded-xl shadow-2xl text-white">
         <h1 className="text-4xl font-bold mb-8 text-yellow-500 text-center">
           {isFromPropertiesPage
-            ? `פרטי הנכס: ${selectedProperties.map(p => `${p.street}, ${p.city}`).join(' | ')}`
+            ? `פרטי הנכס: ${selectedProperties.map(p => p.street).join(' | ')}`
             : `פרטי הלקוח: ${selectedCustomers.map(c => `${c.First_name} ${c.Last_name}`).join(' | ')}`}
         </h1>
 
@@ -337,7 +334,7 @@ const SendMessage = () => {
                       key={property.id} 
                       className="p-4 rounded-lg shadow-sm bg-black border border-yellow-500"
                     >
-                      <h3 className="text-lg font-bold text-white">{property.street}, {property.city}</h3>
+<h3 className="text-lg font-bold text-white">{property.street}</h3>
                       <p className="text-sm text-gray-400">₪{property.price?.toLocaleString()}</p>
                       <p className="text-sm text-gray-400">{property.rooms} חדרים, {property.square_meters} מ"ר</p>
                     </div>
@@ -370,7 +367,6 @@ const SendMessage = () => {
                  </span>
                </div>
              </div>
-             
               )}
               <div className="mb-4">
                 <h3 className="text-lg font-bold mb-2 text-yellow-500">תגיות לקוח</h3>
