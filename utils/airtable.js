@@ -95,23 +95,33 @@ export const authenticateUser = async ({ email, password }) => {
 };
 
 export const handleAuthFlow = async (email, password, confirmPassword, step) => {
+  console.log(`Handling auth flow. Step: ${step}, Email: ${email}`);
+
   if (!email || typeof email !== 'string') {
     throw new Error('כתובת אימייל לא תקינה');
   }
 
   if (!step || typeof step !== 'string') {
-    throw new Error('שלב לא תקין');
+    throw new Error(`שלב לא תקין: ${step}`);
   }
 
-  if (step === 'email') {
-    const hasPassword = await checkEmailExists(email);
-    return { step: hasPassword ? 'login' : 'setPassword' };
-  } else if (step === 'login') {
-    if (!password || typeof password !== 'string') {
-      throw new Error('סיסמה לא תקינה');
-    }
-    try {
-      const user = await authenticateUser({ email, password });
+  switch (step) {
+    case 'email':
+      const hasPassword = await checkEmailExists(email);
+      console.log(`Email check result: ${hasPassword ? 'has password' : 'no password'}`);
+      return { step: hasPassword ? 'login' : 'setPassword' };
+    
+    case 'setPassword':
+      if (!password || typeof password !== 'string') {
+        throw new Error('סיסמה לא תקינה');
+      }
+      if (!confirmPassword || typeof confirmPassword !== 'string') {
+        throw new Error('אימות סיסמה לא תקין');
+      }
+      if (password !== confirmPassword) {
+        throw new Error('הסיסמאות אינן תואמות');
+      }
+      const user = await setPasswordForEmail({ email, password });
       const tokenResponse = await fetch('/api/auth', {
         method: 'POST',
         headers: {
@@ -121,15 +131,27 @@ export const handleAuthFlow = async (email, password, confirmPassword, step) => 
       });
       const { token } = await tokenResponse.json();
       return { ...user, token };
-    } catch (error) {
-      console.error('Authentication error:', error);
-      throw new Error(error.message || 'שגיאה באימות. אנא נסה שנית.');
-    }
-  } else {
-    throw new Error('שלב לא חוקי');
+    
+    case 'login':
+      if (!password || typeof password !== 'string') {
+        throw new Error('סיסמה לא תקינה');
+      }
+      const authenticatedUser = await authenticateUser({ email, password });
+      const loginTokenResponse = await fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: authenticatedUser.id, email: authenticatedUser.email }),
+      });
+      const { token: loginToken } = await loginTokenResponse.json();
+      return { ...authenticatedUser, token: loginToken };
+    
+    default:
+      console.error(`Invalid step received: ${step}`);
+      throw new Error(`שלב לא חוקי: ${step}`);
   }
-};
-export const checkAuthentication = () => {
+};export const checkAuthentication = () => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('authToken');
     if (token) {

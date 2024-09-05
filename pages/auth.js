@@ -21,9 +21,26 @@ export default function Auth() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    console.log(`Submitting form. Current step: ${step}`);
 
     try {
-      const result = await handleAuthFlow(email, password, confirmPassword, step);
+      let result;
+      switch (step) {
+        case 'email':
+          result = await handleAuthFlow(email, null, null, 'email');
+          break;
+        case 'setPassword':
+          result = await handleAuthFlow(email, password, confirmPassword, 'setPassword');
+          break;
+        case 'login':
+          result = await handleAuthFlow(email, password, null, 'login');
+          break;
+        default:
+          throw new Error(`Invalid step: ${step}`);
+      }
+
+      console.log('Auth flow result:', result);
+
       if (result.step) {
         setStep(result.step);
       } else if (result.token) {
@@ -36,6 +53,7 @@ export default function Auth() {
     }
   };
 
+  console.log(`Current step: ${step}`);
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-black">
