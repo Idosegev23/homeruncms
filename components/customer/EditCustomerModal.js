@@ -1,73 +1,60 @@
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
-import Layout from '../components/Layout';
-import { createCustomer } from '../utils/airtable';
 
-const AddCustomer = () => {
-  const router = useRouter();
-  const [newCustomer, setNewCustomer] = useState({
-    First_name: '',
-    Last_name: '',
-    Cell: '',
-    Budget: '',
-    Rooms: '',
-    Square_meters: '',
-    Asset_type: [],
-    investment: '',
-    land_floor: '',
-    garden_apt: '',
-    quiet: '',
-    Elevator: '',
-    parking: '',
-    parking_type: [],
-    renovated: '',
-    sun_balcony: '',
-    TMA_potential: '',
-    area: [],
-    area_is_must: '',
-    tower_is_ok: '',
-    apt_from_project: '',
-    saferoom: '',
-    shelter_is_ok: ''
-  });
+const EditCustomerModal = ({ customer, onSave, onClose }) => {
+  const [editedCustomer, setEditedCustomer] = useState(customer);
   const [formattedBudget, setFormattedBudget] = useState('');
   const [allAreasSelected, setAllAreasSelected] = useState(false);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     if (allAreasSelected) {
-      setNewCustomer(prev => ({
+      setEditedCustomer(prev => ({
         ...prev,
         area: allAreas.map(a => a.value)
       }));
     }
   }, [allAreasSelected]);
 
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
+  useEffect(() => {
+    // Format the initial budget value
+    if (editedCustomer.Budget) {
+      setFormattedBudget(Number(editedCustomer.Budget).toLocaleString());
+    }
+  }, []);
+
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     if (name === 'Budget') {
+      // Remove non-digit characters and parse as number
       const numericValue = value.replace(/\D/g, '');
-      setNewCustomer({ ...newCustomer, [name]: numericValue });
+      setEditedCustomer({ ...editedCustomer, [name]: numericValue });
+      // Format the value for display
       setFormattedBudget(Number(numericValue).toLocaleString());
     } else if (type === 'select-multiple') {
       const options = Array.from(e.target.options);
       const selectedValues = options
         .filter(option => option.selected)
         .map(option => option.value);
-      setNewCustomer({ ...newCustomer, [name]: selectedValues });
+      setEditedCustomer({ ...editedCustomer, [name]: selectedValues });
     } else {
-      setNewCustomer({ ...newCustomer, [name]: value });
+      setEditedCustomer({ ...editedCustomer, [name]: value });
     }
   };
 
   const handleMultiSelectClick = (e, fieldName) => {
     e.preventDefault();
     const value = e.target.value;
-    const currentValues = newCustomer[fieldName] || [];
+    const currentValues = editedCustomer[fieldName] || [];
     const newValues = currentValues.includes(value)
       ? currentValues.filter(v => v !== value)
       : [...currentValues, value];
-    setNewCustomer({ ...newCustomer, [fieldName]: newValues });
+    setEditedCustomer({ ...editedCustomer, [fieldName]: newValues });
 
     if (fieldName === 'area') {
       setAllAreasSelected(newValues.length === allAreas.length);
@@ -78,7 +65,7 @@ const AddCustomer = () => {
     e.preventDefault();
     const newAllAreasSelected = !allAreasSelected;
     setAllAreasSelected(newAllAreasSelected);
-    setNewCustomer(prev => ({
+    setEditedCustomer(prev => ({
       ...prev,
       area: newAllAreasSelected ? allAreas.map(a => a.value) : []
     }));
@@ -94,7 +81,7 @@ const AddCustomer = () => {
             onClick={(e) => handleMultiSelectClick(e, name)}
             value={option.value}
             className={`px-2 py-1 rounded ${
-              newCustomer[name]?.includes(option.value)
+              editedCustomer[name]?.includes(option.value)
                 ? 'bg-yellow-500 text-black'
                 : 'bg-gray-700 text-white'
             }`}
@@ -129,7 +116,7 @@ const AddCustomer = () => {
         {type === 'select' ? (
           <select
             name={name}
-            value={newCustomer[name] || ''}
+            value={editedCustomer[name] || ''}
             onChange={handleChange}
             className="p-2 border border-yellow-500 rounded bg-gray-800 text-white w-full"
           >
@@ -142,7 +129,7 @@ const AddCustomer = () => {
           <input
             name={name}
             type={type}
-            value={newCustomer[name] || ''}
+            value={editedCustomer[name] || ''}
             onChange={handleChange}
             placeholder={label}
             className="p-2 border border-yellow-500 rounded bg-gray-800 text-white w-full"
@@ -152,24 +139,9 @@ const AddCustomer = () => {
     );
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setError('');
-
-    try {
-      const submissionData = {
-        ...newCustomer,
-        Budget: Number(newCustomer.Budget),
-        Cell: Number(newCustomer.Cell),
-        Rooms: Number(newCustomer.Rooms),
-        Square_meters: Number(newCustomer.Square_meters)
-      };
-      await createCustomer(submissionData);
-      router.push('/customers');
-    } catch (err) {
-      console.error('Error creating customer:', err);
-      setError(`שגיאה בהוספת לקוח: ${err.message}`);
-    }
+    onSave(editedCustomer);
   };
 
   const allAreas = [
@@ -186,12 +158,9 @@ const AddCustomer = () => {
   ];
 
   return (
-    <Layout>
-      <div className="container mx-auto p-4 bg-black rounded-lg shadow-2xl text-white">
-        <h1 className="text-2xl font-bold mb-6 text-yellow-500 text-center">הוספת לקוח חדש</h1>
-        
-        {error && <p className="text-red-500 mb-4">{error}</p>}
-        
+    <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-start overflow-y-auto p-4 z-50">
+      <div className="bg-black p-6 rounded-lg w-full max-w-7xl my-8">
+        <h2 className="text-xl text-yellow-500 mb-4">ערוך לקוח</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {renderField('First_name', 'שם פרטי')}
@@ -221,7 +190,7 @@ const AddCustomer = () => {
               { value: 'must_no', label: 'חובה לא' }
             ])}
 
-            {(newCustomer.land_floor === 'yes' || newCustomer.land_floor === 'must_yes') && 
+            {(editedCustomer.land_floor === 'yes' || editedCustomer.land_floor === 'must_yes') && 
               renderField('garden_apt', 'דירת גן?', 'select', [
                 { value: 'yes', label: 'כן' },
                 { value: 'no', label: 'לא' },
@@ -248,7 +217,7 @@ const AddCustomer = () => {
               { value: 'must_yes', label: 'חובה כן' }
             ])}
 
-            {(newCustomer.parking === 'yes' || newCustomer.parking === 'must_yes') &&
+            {(editedCustomer.parking === 'yes' || editedCustomer.parking === 'must_yes') &&
               renderMultiSelect('parking_type', [
                 { value: 'normal', label: 'רגילה' },
                 { value: 'robotic', label: 'רובוטית' },
@@ -282,7 +251,7 @@ const AddCustomer = () => {
               { value: 'must_yes', label: 'חובה כן' }
             ])}
 
-            {newCustomer.saferoom === 'yes' &&
+            {editedCustomer.saferoom === 'yes' &&
               renderField('shelter_is_ok', 'האם מקלט בסדר?', 'select', [
                 { value: 'yes', label: 'כן' },
                 { value: 'no', label: 'לא' }
@@ -302,7 +271,7 @@ const AddCustomer = () => {
               {renderMultiSelect('area', allAreas, '')}
             </div>
 
-            {newCustomer.area?.length > 0 &&
+            {editedCustomer.area?.length > 0 &&
               renderField('area_is_must', 'האם האזור הכרחי?', 'select', [
                 { value: 'yes', label: 'כן' },
                 { value: 'no', label: 'לא' }
@@ -324,13 +293,13 @@ const AddCustomer = () => {
             ])}
           </div>
           <div className="flex justify-end mt-6">
-            <button type="submit" className="px-4 py-2 bg-yellow-500 text-black rounded mr-2">הוסף לקוח</button>
-            <button type="button" onClick={() => router.push('/customers')} className="px-4 py-2 bg-gray-300 text-black rounded">ביטול</button>
+            <button type="submit" className="px-4 py-2 bg-yellow-500 text-black rounded mr-2">שמור</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-300 text-black rounded">ביטול</button>
           </div>
         </form>
       </div>
-    </Layout>
+    </div>
   );
 };
 
-export default AddCustomer;
+export default EditCustomerModal;

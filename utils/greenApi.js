@@ -23,14 +23,14 @@ let isProcessingQueue = false;
 
 const getMessage = async (chatId, idMessage) => {
   try {
-      const response = await axios.post(
-          `${apiUrl}/waInstance${instanceId}/getMessage/${apiToken}`,
-          { chatId, idMessage }
-      );
-      return response.data;
+    const response = await axios.post(
+      `${apiUrl}/waInstance${instanceId}/getMessage/${apiToken}`,
+      { chatId, idMessage }
+    );
+    return response.data;
   } catch (error) {
-      console.error('Error getting message:', error);
-      throw error;
+    console.error('Error getting message:', error);
+    throw error;
   }
 };
 
@@ -213,9 +213,11 @@ const greenApi = {
     }
   },
   
+  // הוספת השהייה של שנייה לפני כל קריאה ל-API
   getLastIncomingMessages: async (minutes = 1440) => {
     return getCachedData('incomingMessages', async () => {
       try {
+        await greenApi.delay(5000); // השהייה של שנייה בין הקריאות
         const response = await axios.get(
           `${apiUrl}/waInstance${instanceId}/lastIncomingMessages/${apiToken}`,
           { params: { minutes } }
@@ -231,6 +233,7 @@ const greenApi = {
   getLastOutgoingMessages: async (minutes = 1440) => {
     return getCachedData('outgoingMessages', async () => {
       try {
+        await greenApi.delay(5000); // השהייה של שנייה בין הקריאות
         const response = await axios.get(
           `${apiUrl}/waInstance${instanceId}/lastOutgoingMessages/${apiToken}`,
           { params: { minutes } }
@@ -242,6 +245,9 @@ const greenApi = {
       }
     });
   },
+
+  // פונקציית עזר להשהייה
+  delay: async (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 
   addToQueue: (phoneNumber, message, immediate = false) => {
     const chatId = `${formatPhoneNumber(phoneNumber)}@c.us`;

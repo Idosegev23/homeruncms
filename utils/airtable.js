@@ -2,8 +2,8 @@
 import Airtable from 'airtable';
 import { AIRTABLE_API_KEY, AIRTABLE_BASE_ID } from '../config';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken'; // הוספנו את jwt ליצירת טוקן
-
+import jwt from 'jsonwebtoken';
+import greenApi from './greenApi';
 
 Airtable.configure({
   apiKey: AIRTABLE_API_KEY
@@ -35,8 +35,6 @@ export const checkEmailExists = async (email) => {
   return records[0].get('Password') !== '';
 };
 
-
-
 export const setPasswordForEmail = async ({ email, password }) => {
   const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -64,7 +62,6 @@ export const setPasswordForEmail = async ({ email, password }) => {
 
   return { id: userId, email: email.toLowerCase() };
 };
-
 
 export const authenticateUser = async ({ email, password }) => {
   const records = await base('Users').select({
@@ -151,12 +148,13 @@ export const handleAuthFlow = async (email, password, confirmPassword, step) => 
       console.error(`Invalid step received: ${step}`);
       throw new Error(`שלב לא חוקי: ${step}`);
   }
-};export const checkAuthentication = () => {
+};
+
+export const checkAuthentication = () => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('authToken');
     if (token) {
       try {
-        // בדיקה בסיסית של תוקף הטוקן
         const decodedToken = jwt.decode(token);
         if (decodedToken && decodedToken.exp * 1000 > Date.now()) {
           return token;
@@ -165,64 +163,172 @@ export const handleAuthFlow = async (email, password, confirmPassword, step) => 
         console.error('Error decoding token:', error);
       }
     }
-    // אם הגענו לכאן, הטוקן לא תקין או לא קיים
-    localStorage.removeItem('authToken'); // מסיר טוקן לא תקין
+    localStorage.removeItem('authToken');
   }
   return null;
 };
 
-
-// Fetch all customers from the 'Customers' table
-export const fetchCustomers = async () => {
-  const records = await base('Customers').select().all();
+export const fetchMsgSentRecords = async () => {
+  const records = await base('msgsent').select().all();
   return records.map(record => ({
     id: record.id,
-    First_name: record.get('First_name'),
-    Last_name: record.get('Last_name'),
-    Cell: record.get('Cell'),
-    Budget: record.get('Budget'),
-    Rooms: record.get('Rooms'),
-    Square_meters: record.get('Square_meters'),
-    Preferred_floor: record.get('Preferred_floor'),
-    City: record.get('City'),
-    Area: record.get('Area'),
+    userid: record.get('userid'),
+    chatid: record.get('chatid'),
+    date: record.get('date')
   }));
 };
+
+export const addMsgSentRecord = async (record) => {
+  try {
+    const existingRecords = await base('msgsent').select({
+      filterByFormula: `{userid} = '${record.userid}'`
+    }).firstPage();
+
+    if (existingRecords.length > 0) {
+      const updatedRecord = await base('msgsent').update(existingRecords[0].id, record);
+      return {
+        id: updatedRecord.id,
+        ...updatedRecord.fields
+      };
+    } else {
+      const createdRecord = await base('msgsent').create([{ fields: record }]);
+      return {
+        id: createdRecord[0].id,
+        ...createdRecord[0].fields
+      };
+    }
+  } catch (error) {
+    console.error('Error adding/updating msgsent record:', error);
+    throw error;
+  }
+};
+
+export const fetchCustomers = async () => {
+  console.log('Fetching customers...');
+  const records = await base('Customers').select().all();
+  console.log(`Fetched ${records.length} customer records`);
+  
+  const msgSentRecords = await fetchMsgSentRecords();
+  console.log(`Fetched ${msgSentRecords.length} msgSent records`);
+
+  const customers = records.map(record => {
+    const customerChatInfo = msgSentRecords.find(msgRecord => msgRecord.userid === record.id);
+    const customer = {
+      id: record.id,
+      First_name: record.get('First_name'),
+      Last_name: record.get('Last_name'),
+      Cell: record.get('Cell'),
+      Budget: record.get('Budget'),
+      Rooms: record.get('Rooms'),
+      Square_meters: record.get('Square_meters'),
+      Asset_type: record.get('Asset_type'),
+      investment: record.get('investment'),
+      land_floor: record.get('land_floor'),
+      garden_apt: record.get('garden_apt'),
+      quiet: record.get('quiet'),
+      Elevator: record.get('Elevator'),
+      parking: record.get('parking'),
+      parking_type: record.get('parking_type'),
+      renovated: record.get('renovated'),
+      sun_balcony: record.get('sun_balcony'),
+      TMA_potential: record.get('TMA_potential'),
+      area: record.get('area'),
+      area_is_must: record.get('area_is_must'),
+      tower_is_ok: record.get('tower_is_ok'),
+      apt_from_project: record.get('apt_from_project'),
+      saferoom: record.get('saferoom'),
+      shelter_is_ok: record.get('shelter_is_ok'),
+      chatId: customerChatInfo ? customerChatInfo.chatid : record.get('Cell'),
+      lastMessageDate: customerChatInfo ? customerChatInfo.date : null
+    };
+    console.log(`Processed customer: ${customer.id} - ${customer.First_name} ${customer.Last_name}`);
+    return customer;
+  });
+
+  console.log('Finished processing all customers');
+  return customers;
+};
+
 export const createCustomer = async (customerData) => {
   try {
-    const createdRecords = await base('Customers').create([{ fields: customerData }]);
-    return {
+    console.log('Creating customer with data:', customerData);
+    
+    // Ensure numeric fields are numbers
+    const processedData = {
+      ...customerData,
+      Cell: Number(customerData.Cell),
+      Budget: Number(customerData.Budget),
+      Rooms: Number(customerData.Rooms),
+      Square_meters: Number(customerData.Square_meters)
+    };
+
+    // Validate data
+    const validationErrors = validateCustomerData(processedData);
+    if (validationErrors.length > 0) {
+      throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
+    }
+
+    const createdRecords = await base('Customers').create([{ fields: processedData }]);
+    
+    const newCustomer = {
       id: createdRecords[0].id,
       ...createdRecords[0].fields
     };
+
+    console.log('Customer created successfully:', newCustomer);
+    return newCustomer;
   } catch (error) {
     console.error('Error creating customer:', error);
     throw error;
   }
 };
 
-// Fetch all properties from the 'Properties' table
-export const fetchProperties = async () => {
-  const records = await base('Properties').select({
-    fields: [
-      'price', 
-      'rooms', 
-      'square_meters', 
-      'floor', 
-      'max_floor',
-      'street', 
-      'Elevator',
-      'parking',
-      'saferoom',
-      'condition',
-      'potential',
-      'Balcony',
-      'airways',
-      'balcony_size',
-      'imageurl'
-    ],
-  }).all();
+const validateCustomerData = (data) => {
+  const errors = [];
 
+  if (!data.First_name) errors.push("שם פרטי הוא שדה חובה");
+  if (!data.Last_name) errors.push("שם משפחה הוא שדה חובה");
+  if (!data.Cell || !Number.isInteger(data.Cell)) errors.push("מספר טלפון חייב להיות מספר שלם");
+  if (!data.Budget || isNaN(data.Budget)) errors.push("תקציב חייב להיות מספר");
+  if (!data.Rooms || isNaN(data.Rooms)) errors.push("מספר חדרים חייב להיות מספר");
+  if (!data.Square_meters || isNaN(data.Square_meters)) errors.push("מ\"ר חייב להיות מספר");
+  
+  const validAssetTypes = ["דירה", "דירת גן", "דירה רגילה", "פנטהאוז", "בית פרטי"];
+  if (!data.Asset_type || !data.Asset_type.every(type => validAssetTypes.includes(type))) {
+    errors.push("סוג נכס לא תקין");
+  }
+
+  const validOptions = ["yes", "no", "must_yes", "must_no"];
+  if (!validOptions.includes(data.investment)) errors.push("ערך לא תקין עבור שדה השקעה");
+  if (!validOptions.includes(data.land_floor)) errors.push("ערך לא תקין עבור שדה קומת קרקע");
+  if (data.garden_apt && !validOptions.includes(data.garden_apt)) errors.push("ערך לא תקין עבור שדה דירת גן");
+  if (!validOptions.includes(data.quiet)) errors.push("ערך לא תקין עבור שדה שקט");
+  if (!validOptions.includes(data.Elevator)) errors.push("ערך לא תקין עבור שדה מעלית");
+  if (!validOptions.includes(data.parking)) errors.push("ערך לא תקין עבור שדה חניה");
+  if (!validOptions.includes(data.renovated)) errors.push("ערך לא תקין עבור שדה משופץ");
+  if (!validOptions.includes(data.sun_balcony)) errors.push("ערך לא תקין עבור שדה מרפסת שמש");
+  if (!validOptions.includes(data.TMA_potential)) errors.push("ערך לא תקין עבור שדה פוטנציאל תמ\"א");
+  if (!validOptions.includes(data.saferoom)) errors.push("ערך לא תקין עבור שדה ממ\"ד");
+  if (data.shelter_is_ok && !validOptions.includes(data.shelter_is_ok)) errors.push("ערך לא תקין עבור שדה האם מקלט בסדר");
+  if (!validOptions.includes(data.area_is_must)) errors.push("ערך לא תקין עבור שדה האם האזור הכרחי");
+  if (!validOptions.includes(data.tower_is_ok)) errors.push("ערך לא תקין עבור שדה האם מגדל בסדר");
+  if (!validOptions.includes(data.apt_from_project)) errors.push("ערך לא תקין עבור שדה דירה מפרויקט");
+
+  const validParkingTypes = ["normal", "robotic", "shared", "semi-shared"];
+  if (data.parking_type && !data.parking_type.every(type => validParkingTypes.includes(type))) {
+    errors.push("סוג חניה לא תקין");
+  }
+
+  const validAreas = ["בבלי", "לב העיר", "פלורנטין", "לב העיר מערב", "צפון ישן", "צפון חדש", "מרכז", "קו הים", "נוה צדק", "כרם התימנים"];
+  if (!data.area || !data.area.every(area => validAreas.includes(area))) {
+    errors.push("אזור לא תקין");
+  }
+
+  return errors;
+};
+
+export const fetchProperties = async () => {
+  const records = await base('Properties').select().all();
   return records.map(record => ({
     id: record.id,
     price: record.get('price'),
@@ -242,10 +348,10 @@ export const fetchProperties = async () => {
     imageurl: record.get('imageurl'),
   }));
 };
-// Function to get relevant properties for a customer
+
 export const getRelevantProperties = (customer, properties = []) => {
   if (!properties || !Array.isArray(properties)) {
-    return []; // מחזיר מערך ריק אם properties אינו מוגדר או אינו מערך
+    return [];
   }
 
   const minPropertyPrice = customer.Budget - 1000000;
@@ -256,29 +362,76 @@ export const getRelevantProperties = (customer, properties = []) => {
   );
 };
 
-// Update a customer in the 'Customers' table
 export const updateCustomer = async (customer) => {
-  const { id, ...fields } = customer;
-  await base('Customers').update(id, fields);
-  return customer;
+  const { id, lastMessageDate, chatId, ...fields } = customer;
+
+  // רשימת השדות התקפים בטבלת Customers
+  const validFields = [
+    'First_name',
+    'Last_name',
+    'Cell',
+    'Budget',
+    'Rooms',
+    'Square_meters',
+    'Asset_type',
+    'investment',
+    'land_floor',
+    'garden_apt',
+    'quiet',
+    'Elevator',
+    'parking',
+    'parking_type',
+    'renovated',
+    'sun_balcony',
+    'TMA_potential',
+    'area',
+    'area_is_must',
+    'tower_is_ok',
+    'apt_from_project',
+    'saferoom',
+    'shelter_is_ok'
+  ];
+
+  // סינון השדות כך שרק שדות תקפים יישלחו לאירטייבל
+  const validUpdates = Object.keys(fields)
+    .filter(key => validFields.includes(key))
+    .reduce((obj, key) => {
+      obj[key] = fields[key];
+      return obj;
+    }, {});
+
+  try {
+    // עדכון נתוני הלקוח בטבלת Customers
+    await base('Customers').update(id, validUpdates);
+
+    // החזרת האובייקט המעודכן
+    return { id, ...validUpdates };
+  } catch (error) {
+    console.error('Error updating customer:', error);
+    throw error;
+  }
 };
 
-// Delete a customer from the 'Customers' table
 export const deleteCustomer = async (id) => {
   await base('Customers').destroy(id);
+
+  const msgSentRecords = await fetchMsgSentRecords();
+  const recordToDelete = msgSentRecords.find(record => record.userid === id);
+  if (recordToDelete) {
+    await base('msgsent').destroy(recordToDelete.id);
+  }
 };
 
-// Update a property in the 'Properties' table
 export const updateProperty = async (property) => {
   const { id, ...fields } = property;
   await base('Properties').update(id, fields);
   return property;
 };
 
-// Delete a property from the 'Properties' table
 export const deleteProperty = async (id) => {
   await base('Properties').destroy(id);
 };
+
 export const createProperty = async (propertyData) => {
   console.log('Sending request to Airtable with data:', propertyData);
   try {
@@ -291,8 +444,6 @@ export const createProperty = async (propertyData) => {
   }
 };
 
-
-// Fetch chat records
 export const fetchChatRecords = async (params = {}) => {
   const records = await base('Chat').select(params).all();
   return records.map(record => ({
@@ -306,7 +457,6 @@ export const fetchChatRecords = async (params = {}) => {
   }));
 };
 
-// Fetch a single chat record
 export const fetchChatRecord = async (recordId) => {
   const record = await base('Chat').find(recordId);
   return {
@@ -320,7 +470,6 @@ export const fetchChatRecord = async (recordId) => {
   };
 };
 
-// Create chat records
 export const createChatRecords = async (records) => {
   const createdRecords = await base('Chat').create(records);
   return createdRecords.map(record => ({
@@ -330,7 +479,6 @@ export const createChatRecords = async (records) => {
   }));
 };
 
-// Update chat records
 export const updateChatRecords = async (records) => {
   const updatedRecords = await base('Chat').update(records);
   return updatedRecords.map(record => ({
@@ -340,7 +488,6 @@ export const updateChatRecords = async (records) => {
   }));
 };
 
-// Delete chat records
 export const deleteChatRecords = async (recordIds) => {
   const deletedRecords = await base('Chat').destroy(recordIds);
   return deletedRecords.map(record => ({
@@ -349,19 +496,42 @@ export const deleteChatRecords = async (recordIds) => {
   }));
 };
 
-// פונקציה לשמירת היסטוריית צ'אט עבור לקוח מסוים
-export const saveChatHistory = async (customerId, chatHistory) => {
+export const unifyAndSortMessages = async (chatId) => {
   try {
+    const chatRecords = await fetchChatRecords({ filterByFormula: `{chatid} = '${chatId}'` });
+    const incomingMessages = await greenApi.getLastIncomingMessages(1440, chatId);
+    const outgoingMessages = await greenApi.getLastOutgoingMessages(1440, chatId);
+
+    let allMessages = [
+      ...chatRecords.flatMap(record => record.chat_history),
+      ...incomingMessages,
+      ...outgoingMessages
+    ];
+
+    allMessages = allMessages.filter((message, index, self) =>
+      index === self.findIndex((t) => t.id === message.id)
+    );
+
+    allMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    return allMessages;
+  } catch (error) {
+    console.error('Error in unifyAndSortMessages:', error);
+    throw error;
+  }
+};
+
+export const saveChatHistory = async (customerId, chatId, chatHistory) => {
+  try {
+    const formattedChatHistory = formatChatHistoryForAirtable(chatHistory);
     const existingRecords = await base('Chat').select({
       filterByFormula: `{customerId} = '${customerId}'`
     }).firstPage();
 
-    const formattedChatHistory = formatChatHistoryForAirtable(chatHistory);
-
     if (existingRecords.length > 0) {
-      // עדכון הרשומה הקיימת
       const updatedRecord = await base('Chat').update(existingRecords[0].id, {
-        chat_history: formattedChatHistory
+        chat_history: formattedChatHistory,
+        chatid: chatId
       });
       return {
         id: updatedRecord.id,
@@ -369,9 +539,9 @@ export const saveChatHistory = async (customerId, chatHistory) => {
         chat_history: parseChatHistoryFromAirtable(updatedRecord.fields.chat_history)
       };
     } else {
-      // יצירת רשומה חדשה אם לא קיימת
       const createdRecord = await base('Chat').create({
         customerId: customerId,
+        chatid: chatId,
         chat_history: formattedChatHistory
       });
       return {
@@ -386,7 +556,6 @@ export const saveChatHistory = async (customerId, chatHistory) => {
   }
 };
 
-// פונקציה לאחזור היסטוריית צ'אט עבור לקוח מסוים
 export const fetchChatHistory = async (customerId) => {
   try {
     const records = await base('Chat').select({
@@ -406,7 +575,6 @@ export const fetchChatHistory = async (customerId) => {
   }
 };
 
-// פונקציה עזר לפורמט היסטוריית הצ'אט לפורמט של Airtable
 const formatChatHistoryForAirtable = (chatHistory) => {
   return [{
     type: "paragraph",
@@ -420,7 +588,6 @@ const formatChatHistoryForAirtable = (chatHistory) => {
   }];
 };
 
-// פונקציה עזר לפענוח היסטוריית הצ'אט מהפורמט של Airtable
 const parseChatHistoryFromAirtable = (airtableChatHistory) => {
   if (!airtableChatHistory || !Array.isArray(airtableChatHistory)) {
     return [];
@@ -438,4 +605,31 @@ const parseChatHistoryFromAirtable = (airtableChatHistory) => {
       }
     })
     .filter(message => message !== null);
+};
+
+export default {
+  checkEmailExists,
+  setPasswordForEmail,
+  authenticateUser,
+  handleAuthFlow,
+  checkAuthentication,
+  fetchMsgSentRecords,
+  addMsgSentRecord,
+  fetchCustomers,
+  createCustomer,
+  fetchProperties,
+  getRelevantProperties,
+  updateCustomer,
+  deleteCustomer,
+  updateProperty,
+  deleteProperty,
+  createProperty,
+  fetchChatRecords,
+  fetchChatRecord,
+  createChatRecords,
+  updateChatRecords,
+  deleteChatRecords,
+  unifyAndSortMessages,
+  saveChatHistory,
+  fetchChatHistory
 };

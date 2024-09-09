@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
-import CustomerList from '../../components/CustomerList';
+import CustomerList from '../../components/customer/CustomerList';
 
 export default function Customers() {
   return (
