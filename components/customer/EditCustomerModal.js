@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
 const EditCustomerModal = ({ customer, onSave, onClose }) => {
-  const [editedCustomer, setEditedCustomer] = useState(customer);
+  const [editedCustomer, setEditedCustomer] = useState(customer || {});
   const [formattedBudget, setFormattedBudget] = useState('');
   const [allAreasSelected, setAllAreasSelected] = useState(false);
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     if (allAreasSelected) {
@@ -22,29 +23,82 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
   }, []);
 
   useEffect(() => {
-    // Format the initial budget value
-    if (editedCustomer.Budget) {
+    if (editedCustomer?.Budget) {
       setFormattedBudget(Number(editedCustomer.Budget).toLocaleString());
     }
   }, []);
 
+  const validateField = (name, value) => {
+    if (value === '' || value === undefined || value === null) return true;
+    
+    switch (name) {
+      case 'Square_meters':
+        const sqm = Number(value);
+        return Number.isInteger(sqm) && sqm > 0;
+      case 'Rooms':
+        const rooms = Number(value);
+        return rooms > 0 && Number.isInteger(rooms * 2); // Allow .5 values
+      case 'Budget':
+        return Number.isInteger(Number(value)) && Number(value) > 0;
+      case 'Cell':
+        return /^\d{9,10}$/.test(value); // Israeli phone number validation
+      default:
+        return true;
+    }
+  };
+
+  const getErrorMessage = (name) => {
+    switch (name) {
+      case 'Square_meters':
+        return 'יש להזין מספר שלם חיובי';
+      case 'Rooms':
+        return 'יש להזין מספר חיובי (מותר חצאי חדרים)';
+      case 'Budget':
+        return 'יש להזין סכום חיובי ללא אגורות';
+      case 'Cell':
+        return 'יש להזין מספר טלפון תקין (9-10 ספרות)';
+      default:
+        return 'ערך לא תקין';
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value, type } = e.target;
+    let processedValue = value;
+    let formattedValue = value;
+
     if (name === 'Budget') {
-      // Remove non-digit characters and parse as number
       const numericValue = value.replace(/\D/g, '');
-      setEditedCustomer({ ...editedCustomer, [name]: numericValue });
-      // Format the value for display
-      setFormattedBudget(Number(numericValue).toLocaleString());
+      processedValue = numericValue ? Number(numericValue) : '';
+      formattedValue = processedValue ? Number(processedValue).toLocaleString() : '';
+      setFormattedBudget(formattedValue);
+    } else if (type === 'number') {
+      processedValue = value === '' ? '' : Number(value);
     } else if (type === 'select-multiple') {
       const options = Array.from(e.target.options);
-      const selectedValues = options
+      processedValue = options
         .filter(option => option.selected)
         .map(option => option.value);
-      setEditedCustomer({ ...editedCustomer, [name]: selectedValues });
-    } else {
-      setEditedCustomer({ ...editedCustomer, [name]: value });
     }
+
+    // Validate field
+    if (!validateField(name, processedValue)) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: getErrorMessage(name)
+      }));
+    } else {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+
+    setEditedCustomer(prev => ({
+      ...prev,
+      [name]: processedValue
+    }));
   };
 
   const handleMultiSelectClick = (e, fieldName) => {
@@ -54,7 +108,11 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
     const newValues = currentValues.includes(value)
       ? currentValues.filter(v => v !== value)
       : [...currentValues, value];
-    setEditedCustomer({ ...editedCustomer, [fieldName]: newValues });
+    
+    setEditedCustomer(prev => ({
+      ...prev,
+      [fieldName]: newValues
+    }));
 
     if (fieldName === 'area') {
       setAllAreasSelected(newValues.length === allAreas.length);
@@ -104,8 +162,13 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
             value={formattedBudget}
             onChange={handleChange}
             placeholder={label}
-            className="p-2 border border-yellow-500 rounded bg-gray-800 text-white w-full"
+            className={`p-2 border rounded bg-gray-800 text-white w-full ${
+              errors[name] ? 'border-red-500' : 'border-yellow-500'
+            }`}
           />
+          {errors[name] && (
+            <span className="text-red-500 text-sm mt-1">{errors[name]}</span>
+          )}
         </div>
       );
     }
@@ -118,7 +181,9 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
             name={name}
             value={editedCustomer[name] || ''}
             onChange={handleChange}
-            className="p-2 border border-yellow-500 rounded bg-gray-800 text-white w-full"
+            className={`p-2 border rounded bg-gray-800 text-white w-full ${
+              errors[name] ? 'border-red-500' : 'border-yellow-500'
+            }`}
           >
             <option value="">בחר אפשרות</option>
             {options.map(option => (
@@ -126,22 +191,57 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
             ))}
           </select>
         ) : (
-          <input
-            name={name}
-            type={type}
-            value={editedCustomer[name] || ''}
-            onChange={handleChange}
-            placeholder={label}
-            className="p-2 border border-yellow-500 rounded bg-gray-800 text-white w-full"
-          />
+          <>
+            <input
+              name={name}
+              type={type}
+              value={editedCustomer[name] || ''}
+              onChange={handleChange}
+              placeholder={label}
+              className={`p-2 border rounded bg-gray-800 text-white w-full ${
+                errors[name] ? 'border-red-500' : 'border-yellow-500'
+              }`}
+              step={name === 'Rooms' ? '0.5' : '1'}
+              min="0"
+            />
+            {errors[name] && (
+              <span className="text-red-500 text-sm mt-1">{errors[name]}</span>
+            )}
+          </>
         )}
       </div>
     );
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSave(editedCustomer);
+    
+    // Validate all fields before submission
+    const newErrors = {};
+    ['Square_meters', 'Rooms', 'Budget', 'Cell'].forEach(field => {
+      if (editedCustomer[field] && !validateField(field, editedCustomer[field])) {
+        newErrors[field] = getErrorMessage(field);
+      }
+    });
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    // Clean up empty values before saving
+    const cleanedCustomer = Object.fromEntries(
+      Object.entries(editedCustomer).filter(([_, value]) => 
+        value !== '' && value !== null && value !== undefined
+      )
+    );
+
+    try {
+      await onSave(cleanedCustomer);
+    } catch (error) {
+      console.error('Error saving customer:', error);
+      // Add any error handling UI here if needed
+    }
   };
 
   const allAreas = [
@@ -292,9 +392,26 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
               { value: 'must_no', label: 'חובה לא' }
             ])}
           </div>
-          <div className="flex justify-end mt-6">
-            <button type="submit" className="px-4 py-2 bg-yellow-500 text-black rounded mr-2">שמור</button>
-            <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-300 text-black rounded">ביטול</button>
+
+          <div className="flex justify-end mt-6 gap-2">
+            <button
+              type="submit"
+              disabled={Object.keys(errors).length > 0}
+              className={`px-4 py-2 rounded ${
+                Object.keys(errors).length > 0
+                  ? 'bg-gray-500 cursor-not-allowed'
+                  : 'bg-yellow-500 hover:bg-yellow-600'
+              } text-black`}
+            >
+              שמור
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-black rounded"
+            >
+              ביטול
+            </button>
           </div>
         </form>
       </div>
