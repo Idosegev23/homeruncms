@@ -6,26 +6,52 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
   const [allAreasSelected, setAllAreasSelected] = useState(false);
   const [errors, setErrors] = useState({});
 
-  useEffect(() => {
-    if (allAreasSelected) {
-      setEditedCustomer(prev => ({
-        ...prev,
-        area: allAreas.map(a => a.value)
-      }));
+  // Define all valid options based on Airtable schema
+  const validOptions = {
+    Asset_type: [
+      'דירה',
+      'דירת גן',
+      'דירה רגילה',
+      'פנטהאוז',
+      'בית פרטי'
+    ],
+    parking_type: [
+      'normal',
+      'robotic',
+      'shared',
+      'semi-shared'
+    ],
+    area: [
+      'בבלי',
+      'לב העיר',
+      'פלורנטין',
+      'לב העיר מערב',
+      'צפון ישן',
+      'צפון חדש',
+      'מרכז',
+      'קו הים',
+      'נוה צדק',
+      'כרם התימנים'
+    ],
+    defaultValues: {
+      yesNo: ['yes', 'no'],
+      yesNoMust: ['yes', 'no', 'must_yes'],
+      yesNoMustFull: ['yes', 'no', 'must_yes', 'must_no']
     }
-  }, [allAreasSelected]);
+  };
+
+  useEffect(() => {
+    if (customer?.Budget) {
+      setFormattedBudget(Number(customer.Budget).toLocaleString());
+    }
+    setAllAreasSelected(customer?.area?.length === validOptions.area.length);
+  }, [customer]);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, []);
-
-  useEffect(() => {
-    if (editedCustomer?.Budget) {
-      setFormattedBudget(Number(editedCustomer.Budget).toLocaleString());
-    }
   }, []);
 
   const validateField = (name, value) => {
@@ -65,20 +91,16 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     let processedValue = value;
-    let formattedValue = value;
 
+    // Handle different field types
     if (name === 'Budget') {
       const numericValue = value.replace(/\D/g, '');
-      processedValue = numericValue ? Number(numericValue) : '';
-      formattedValue = processedValue ? Number(processedValue).toLocaleString() : '';
-      setFormattedBudget(formattedValue);
+      processedValue = numericValue ? Number(numericValue) : undefined;
+      setFormattedBudget(numericValue ? Number(numericValue).toLocaleString() : '');
     } else if (type === 'number') {
-      processedValue = value === '' ? '' : Number(value);
-    } else if (type === 'select-multiple') {
-      const options = Array.from(e.target.options);
-      processedValue = options
-        .filter(option => option.selected)
-        .map(option => option.value);
+      processedValue = value === '' ? undefined : Number(value);
+    } else if (value === '') {
+      processedValue = undefined;
     }
 
     // Validate field
@@ -111,11 +133,11 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
     
     setEditedCustomer(prev => ({
       ...prev,
-      [fieldName]: newValues
+      [fieldName]: newValues.length > 0 ? newValues : undefined
     }));
 
     if (fieldName === 'area') {
-      setAllAreasSelected(newValues.length === allAreas.length);
+      setAllAreasSelected(newValues.length === validOptions.area.length);
     }
   };
 
@@ -123,9 +145,10 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
     e.preventDefault();
     const newAllAreasSelected = !allAreasSelected;
     setAllAreasSelected(newAllAreasSelected);
+    
     setEditedCustomer(prev => ({
       ...prev,
-      area: newAllAreasSelected ? allAreas.map(a => a.value) : []
+      area: newAllAreasSelected ? validOptions.area : undefined
     }));
   };
 
@@ -135,16 +158,16 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
       <div className="flex flex-wrap gap-2">
         {options.map(option => (
           <button
-            key={option.value}
+            key={option}
             onClick={(e) => handleMultiSelectClick(e, name)}
-            value={option.value}
+            value={option}
             className={`px-2 py-1 rounded ${
-              editedCustomer[name]?.includes(option.value)
+              editedCustomer[name]?.includes(option)
                 ? 'bg-yellow-500 text-black'
                 : 'bg-gray-700 text-white'
             }`}
           >
-            {option.label}
+            {option}
           </button>
         ))}
       </div>
@@ -187,7 +210,7 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
           >
             <option value="">בחר אפשרות</option>
             {options.map(option => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option} value={option}>{option}</option>
             ))}
           </select>
         ) : (
@@ -229,38 +252,19 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
       return;
     }
 
-    // Clean up empty values before saving
-    const cleanedCustomer = Object.fromEntries(
-      Object.entries(editedCustomer).filter(([_, value]) => 
-        value !== '' && value !== null && value !== undefined
-      )
-    );
-
     try {
-      await onSave(cleanedCustomer);
+      await onSave(editedCustomer);
     } catch (error) {
       console.error('Error saving customer:', error);
-      // Add any error handling UI here if needed
     }
   };
-
-  const allAreas = [
-    { value: 'בבלי', label: 'בבלי' },
-    { value: 'לב העיר', label: 'לב העיר' },
-    { value: 'פלורנטין', label: 'פלורנטין' },
-    { value: 'לב העיר מערב', label: 'לב העיר מערב' },
-    { value: 'צפון ישן', label: 'צפון ישן' },
-    { value: 'צפון חדש', label: 'צפון חדש' },
-    { value: 'מרכז', label: 'מרכז' },
-    { value: 'קו הים', label: 'קו הים' },
-    { value: 'נוה צדק', label: 'נוה צדק' },
-    { value: 'כרם התימנים', label: 'כרם התימנים' }
-  ];
 
   return (
     <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-start overflow-y-auto p-4 z-50">
       <div className="bg-black p-6 rounded-lg w-full max-w-7xl my-8">
-        <h2 className="text-xl text-yellow-500 mb-4">ערוך לקוח</h2>
+        <h2 className="text-xl text-yellow-500 mb-4">
+          {customer?.id ? 'ערוך לקוח' : 'הוספת לקוח חדש'}
+        </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {renderField('First_name', 'שם פרטי')}
@@ -270,96 +274,34 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
             {renderField('Rooms', 'חדרים', 'number')}
             {renderField('Square_meters', 'מ״ר', 'number')}
 
-            {renderMultiSelect('Asset_type', [
-              { value: 'דירה', label: 'דירה' },
-              { value: 'דירת גן', label: 'דירת גן' },
-              { value: 'דירה רגילה', label: 'דירה רגילה' },
-              { value: 'פנטהאוז', label: 'פנטהאוז' },
-              { value: 'בית פרטי', label: 'בית פרטי' }
-            ], 'סוג נכס (ניתן לבחור מספר אפשרויות)')}
-
-            {renderField('investment', 'השקעה?', 'select', [
-              { value: 'yes', label: 'כן' },
-              { value: 'no', label: 'לא' }
-            ])}
-
-            {renderField('land_floor', 'קומת קרקע?', 'select', [
-              { value: 'yes', label: 'כן' },
-              { value: 'no', label: 'לא' },
-              { value: 'must_yes', label: 'חובה כן' },
-              { value: 'must_no', label: 'חובה לא' }
-            ])}
-
+            {renderMultiSelect('Asset_type', validOptions.Asset_type, 'סוג נכס')}
+            
+            {renderField('investment', 'השקעה?', 'select', validOptions.defaultValues.yesNo)}
+            {renderField('land_floor', 'קומת קרקע?', 'select', validOptions.defaultValues.yesNoMustFull)}
+            
             {(editedCustomer.land_floor === 'yes' || editedCustomer.land_floor === 'must_yes') && 
-              renderField('garden_apt', 'דירת גן?', 'select', [
-                { value: 'yes', label: 'כן' },
-                { value: 'no', label: 'לא' },
-                { value: 'must_yes', label: 'חובה כן' },
-                { value: 'must_no', label: 'חובה לא' }
-              ])
+              renderField('garden_apt', 'דירת גן?', 'select', validOptions.defaultValues.yesNoMustFull)
             }
 
-            {renderField('quiet', 'שקט?', 'select', [
-              { value: 'yes', label: 'כן' },
-              { value: 'no', label: 'לא' },
-              { value: 'must_yes', label: 'חובה כן' }
-            ])}
-
-            {renderField('Elevator', 'מעלית?', 'select', [
-              { value: 'yes', label: 'כן' },
-              { value: 'no', label: 'לא' },
-              { value: 'must_yes', label: 'חובה כן' }
-            ])}
-
-            {renderField('parking', 'חניה?', 'select', [
-              { value: 'yes', label: 'כן' },
-              { value: 'no', label: 'לא' },
-              { value: 'must_yes', label: 'חובה כן' }
-            ])}
+            {renderField('quiet', 'שקט?', 'select', validOptions.defaultValues.yesNoMust)}
+            {renderField('Elevator', 'מעלית?', 'select', validOptions.defaultValues.yesNoMust)}
+            {renderField('parking', 'חניה?', 'select', validOptions.defaultValues.yesNoMust)}
 
             {(editedCustomer.parking === 'yes' || editedCustomer.parking === 'must_yes') &&
-              renderMultiSelect('parking_type', [
-                { value: 'normal', label: 'רגילה' },
-                { value: 'robotic', label: 'רובוטית' },
-                { value: 'shared', label: 'משותפת' },
-                { value: 'semi-shared', label: 'חצי משותפת' }
-              ], 'סוג חניה (ניתן לבחור מספר אפשרויות)')
+              renderMultiSelect('parking_type', validOptions.parking_type, 'סוג חניה')
             }
 
-            {renderField('renovated', 'משופץ?', 'select', [
-              { value: 'yes', label: 'כן' },
-              { value: 'no', label: 'לא' },
-              { value: 'must_yes', label: 'חובה כן' }
-            ])}
-
-            {renderField('sun_balcony', 'מרפסת שמש?', 'select', [
-              { value: 'yes', label: 'כן' },
-              { value: 'no', label: 'לא' },
-              { value: 'must_yes', label: 'חובה כן' }
-            ])}
-
-            {renderField('TMA_potential', 'פוטנציאל תמ"א?', 'select', [
-              { value: 'yes', label: 'כן' },
-              { value: 'no', label: 'לא' },
-              { value: 'must_yes', label: 'חובה כן' },
-              { value: 'must_no', label: 'חובה לא' }
-            ])}
-
-            {renderField('saferoom', 'ממ"ד?', 'select', [
-              { value: 'yes', label: 'כן' },
-              { value: 'no', label: 'לא' },
-              { value: 'must_yes', label: 'חובה כן' }
-            ])}
+            {renderField('renovated', 'משופץ?', 'select', validOptions.defaultValues.yesNoMust)}
+            {renderField('sun_balcony', 'מרפסת שמש?', 'select', validOptions.defaultValues.yesNoMust)}
+            {renderField('TMA_potential', 'פוטנציאל תמ"א?', 'select', validOptions.defaultValues.yesNoMustFull)}
+            {renderField('saferoom', 'ממ"ד?', 'select', validOptions.defaultValues.yesNoMust)}
 
             {editedCustomer.saferoom === 'yes' &&
-              renderField('shelter_is_ok', 'האם מקלט בסדר?', 'select', [
-                { value: 'yes', label: 'כן' },
-                { value: 'no', label: 'לא' }
-              ])
+              renderField('shelter_is_ok', 'האם מקלט בסדר?', 'select', validOptions.defaultValues.yesNo)
             }
 
             <div className="flex flex-col">
-              <label className="mb-1 text-yellow-500">אזור (ניתן לבחור מספר אפשרויות)</label>
+              <label className="mb-1 text-yellow-500">אזור</label>
               <button
                 onClick={handleSelectAllAreas}
                 className={`mb-2 px-2 py-1 rounded ${
@@ -368,29 +310,15 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
               >
                 {allAreasSelected ? 'בטל בחירת הכל' : 'בחר הכל'}
               </button>
-              {renderMultiSelect('area', allAreas, '')}
+              {renderMultiSelect('area', validOptions.area, '')}
             </div>
 
             {editedCustomer.area?.length > 0 &&
-              renderField('area_is_must', 'האם האזור הכרחי?', 'select', [
-                { value: 'yes', label: 'כן' },
-                { value: 'no', label: 'לא' }
-              ])
+              renderField('area_is_must', 'האם האזור הכרחי?', 'select', validOptions.defaultValues.yesNo)
             }
 
-            {renderField('tower_is_ok', 'האם מגדל בסדר?', 'select', [
-              { value: 'yes', label: 'כן' },
-              { value: 'no', label: 'לא' },
-              { value: 'must_no', label: 'חובה לא' },
-              { value: 'must_yes', label: 'חובה כן' }
-            ])}
-
-            {renderField('apt_from_project', 'דירה מפרויקט?', 'select', [
-              { value: 'yes', label: 'כן' },
-              { value: 'no', label: 'לא' },
-              { value: 'must_yes', label: 'חובה כן' },
-              { value: 'must_no', label: 'חובה לא' }
-            ])}
+            {renderField('tower_is_ok', 'האם מגדל בסדר?', 'select', validOptions.defaultValues.yesNoMustFull)}
+            {renderField('apt_from_project', 'דירה מפרויקט?', 'select', validOptions.defaultValues.yesNoMustFull)}
           </div>
 
           <div className="flex justify-end mt-6 gap-2">
