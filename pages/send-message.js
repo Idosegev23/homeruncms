@@ -1,8 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { fetchProperties, fetchCustomers, fetchChatRecords, createChatRecords } from '../utils/airtable';
 import Layout from '../components/Layout';
 import greenApi from '../utils/greenApi';
+import { calculateMatchPercentage } from '../utils/matching';
+import { 
+  BsBuilding,
+  BsCash,
+  BsDoorOpen,
+  BsRulers,
+  BsArrowUpSquare,
+  BsFillCarFrontFill,
+  BsShieldFill,
+  BsWindow,
+  BsSnow,
+  BsTools,
+  BsHouseFill,
+  BsPinMap
+} from 'react-icons/bs';
 
 const SendMessage = () => {
   const router = useRouter();
@@ -22,6 +37,7 @@ const SendMessage = () => {
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [mediaPreview, setMediaPreview] = useState(null);
   const fileInputRef = useRef(null);
+  const [sortByMatch, setSortByMatch] = useState(false);
 
   const customerTags = [
     '{{שם פרטי}}', '{{שם משפחה}}', '{{טלפון}}', '{{תקציב}}',
@@ -130,15 +146,27 @@ const SendMessage = () => {
     }
   };
 
-  const filteredCustomers = customers.filter(customer => {
-    const firstName = customer.First_name || '';
-    const lastName = customer.Last_name || '';
-    const cell = customer.Cell ? String(customer.Cell) : '';
+  const filteredCustomers = useMemo(() => {
+    let filtered = customers.filter(customer => {
+      const firstName = customer.First_name || '';
+      const lastName = customer.Last_name || '';
+      const cell = customer.Cell ? String(customer.Cell) : '';
 
-    return firstName.toLowerCase().includes(searchQuery) ||
-           lastName.toLowerCase().includes(searchQuery) ||
-           cell.includes(searchQuery);
-  });
+      return firstName.toLowerCase().includes(searchQuery) ||
+             lastName.toLowerCase().includes(searchQuery) ||
+             cell.includes(searchQuery);
+    });
+
+    if (sortByMatch && selectedProperties[0]) {
+      filtered.sort((a, b) => {
+        const matchA = calculateMatchPercentage(selectedProperties[0], a);
+        const matchB = calculateMatchPercentage(selectedProperties[0], b);
+        return matchB.score - matchA.score;
+      });
+    }
+
+    return filtered;
+  }, [customers, searchQuery, sortByMatch, selectedProperties]);
 
   const filteredProperties = properties.filter(property => {
     const street = property.street || '';
@@ -260,6 +288,287 @@ const SendMessage = () => {
     }
   }, [message, selectedCustomers, selectedProperties]);
 
+  const CustomerCard = ({ customer, property, isSelected, onSelect }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const matchResult = calculateMatchPercentage(property, customer);
+
+    const renderMatchIndicator = (detail) => {
+      if (!detail) return <span className="text-gray-500">-</span>;
+      return detail.score > 0 ? 
+        <span className="text-green-500 font-bold">✓</span> : 
+        <span className="text-red-500 font-bold">✕</span>;
+    };
+
+    // פונקציה לקיצור רשימת הדרישות שלא מתקיימות
+    const getShortDealBreakers = () => {
+      if (!matchResult.dealBreakers?.length) return '';
+      return matchResult.dealBreakers.map(warning => {
+        // מקצר כל אזהרה למילה אחת
+        if (warning.includes('מעלית')) return 'מעלית';
+        if (warning.includes('חניה')) return 'חניה';
+        if (warning.includes('ממ"ד')) return 'ממ"ד';
+        if (warning.includes('דירת גן')) return 'דירת גן';
+        if (warning.includes('שקטה')) return 'שקט';
+        if (warning.includes('משופץ')) return 'שיפוץ';
+        return warning;
+      }).join(', ');
+    };
+
+    if (!matchResult || !matchResult.matchDetails) {
+      return <div>טוען...</div>;
+    }
+
+    return (
+      <div className={`p-4 rounded-lg shadow-sm mb-4 transition-all duration-300 ${
+        isSelected ? 'bg-gray-900 border-2 border-yellow-500' : 'bg-gray-800'
+      }`}>
+        {/* כרטיס מצומצם */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h3 className="text-xl font-bold text-yellow-500">
+              {customer.First_name} {customer.Last_name}
+            </h3>
+            <span className="text-lg text-white">
+              ({matchResult.score?.toFixed(1)}% התאמה)
+            </span>
+            {matchResult.dealBreakers?.length > 0 && (
+              <div className="flex items-center">
+                <span className="text-red-500 text-lg ml-2">⚠️</span>
+                <span className="text-red-400 text-sm">
+                  חסר: {getShortDealBreakers()}
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
+            >
+              {isExpanded ? 'הסתר פרטים' : 'הצג פרטים'}
+            </button>
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => onSelect(customer)}
+              className="h-5 w-5"
+            />
+          </div>
+        </div>
+
+        {/* פרטים מורחבים */}
+        {isExpanded && (
+          <div className="mt-4 border-t border-gray-700 pt-4">
+            <div className="flex flex-col md:flex-row gap-6">
+              {/* טבלת התאמות */}
+              <div className="flex-1">
+                <h4 className="text-lg font-semibold text-yellow-500 mb-3">פרטי התאמה</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-gray-400 border-b border-gray-700">
+                        <th className="text-right pb-2">פרמטר</th>
+                        <th className="text-right pb-2">ערך נדרש</th>
+                        <th className="text-right pb-2">ערך בנכס</th>
+                        <th className="text-center pb-2">התאה</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="py-1">תקציב</td>
+                        <td className="py-1">₪{customer.Budget?.toLocaleString()}</td>
+                        <td className="py-1">₪{property.price?.toLocaleString()}</td>
+                        <td className="text-center">{renderMatchIndicator(matchResult.matchDetails.budget)}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-1">מ"ר</td>
+                        <td className="py-1">{customer.Square_meters}</td>
+                        <td className="py-1">{property.square_meters}</td>
+                        <td className="text-center">{renderMatchIndicator(matchResult.matchDetails.squareMeters)}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-1">חדרים</td>
+                        <td className="py-1">{customer.Rooms}</td>
+                        <td className="py-1">{property.rooms}</td>
+                        <td className="text-center">{renderMatchIndicator(matchResult.matchDetails.rooms)}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-1">מעלית</td>
+                        <td className="py-1">{customer.Elevator === 'must_yes' ? 'חובה' : 'לא חובה'}</td>
+                        <td className="py-1">{property.Elevator ? 'יש' : 'אין'}</td>
+                        <td className="text-center">{renderMatchIndicator(matchResult.matchDetails.elevator)}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-1">חניה</td>
+                        <td className="py-1">{customer.parking === 'must_yes' ? 'חובה' : 'לא חובה'}</td>
+                        <td className="py-1">{property.parking ? 'יש' : 'אין'}</td>
+                        <td className="text-center">{renderMatchIndicator(matchResult.matchDetails.parking)}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-1">ממ"ד</td>
+                        <td className="py-1">{customer.saferoom === 'must_yes' ? 'חובה' : 'לא חובה'}</td>
+                        <td className="py-1">{property.saferoom ? 'יש' : 'אין'}</td>
+                        <td className="text-center">{renderMatchIndicator(matchResult.matchDetails.saferoom)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* דרישות שלא מתקיימות */}
+              {matchResult.dealBreakers?.length > 0 && (
+                <div className="md:w-1/3">
+                  <h4 className="text-lg font-semibold text-red-500 mb-3">דרישות שלא מתקיימות</h4>
+                  <div className="bg-red-900 bg-opacity-20 p-4 rounded-lg">
+                    <ul className="list-disc list-inside text-red-400 space-y-2">
+                      {matchResult.dealBreakers.map((warning, idx) => (
+                        <li key={idx}>{warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderPropertyDetails = (property) => {
+    return (
+      <div className="bg-gray-800 p-6 rounded-lg mb-6 shadow-lg border border-gray-700">
+        {/* כותרת */}
+        <div className="border-b border-gray-700 pb-4 mb-6">
+          <h2 className="text-3xl font-bold text-yellow-500 flex items-center gap-3">
+            <BsBuilding className="text-2xl" />
+            <span>{property.street}</span>
+          </h2>
+          <div className="mt-2 text-gray-400 flex items-center gap-2">
+            <BsPinMap />
+            <span>{property.Area}</span>
+          </div>
+        </div>
+
+        {/* פרטים עיקריים */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-6">
+          {/* מחיר */}
+          <div className="bg-gray-900 p-4 rounded-lg">
+            <div className="flex items-center gap-2 text-yellow-500 mb-1 text-sm">
+              <BsCash />
+              <span>מחיר</span>
+            </div>
+            <div className="text-xl font-bold">{property.price?.toLocaleString()} ₪</div>
+          </div>
+
+          {/* חדרים */}
+          <div className="bg-gray-900 p-4 rounded-lg">
+            <div className="flex items-center gap-2 text-yellow-500 mb-1 text-sm">
+              <BsDoorOpen />
+              <span>חדרים</span>
+            </div>
+            <div className="text-xl font-bold">{property.rooms}</div>
+          </div>
+
+          {/* מ"ר */}
+          <div className="bg-gray-900 p-4 rounded-lg">
+            <div className="flex items-center gap-2 text-yellow-500 mb-1 text-sm">
+              <BsRulers />
+              <span>שטח</span>
+            </div>
+            <div className="text-xl font-bold">{property.square_meters} מ"ר</div>
+          </div>
+
+          {/* קומה */}
+          <div className="bg-gray-900 p-4 rounded-lg">
+            <div className="flex items-center gap-2 text-yellow-500 mb-1 text-sm">
+              <BsBuilding />
+              <span>קומה</span>
+            </div>
+            <div className="text-xl font-bold">{property.floor} מתוך {property.max_floor}</div>
+          </div>
+        </div>
+
+        {/* מאפיינים */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {/* מעלית */}
+          <div className={`flex items-center gap-3 p-3 rounded-lg ${
+            property.Elevator ? 'bg-green-900/30' : 'bg-red-900/30'
+          }`}>
+            <BsArrowUpSquare className={`text-xl ${
+              property.Elevator ? 'text-green-500' : 'text-red-500'
+            }`} />
+            <span className={property.Elevator ? 'text-green-400' : 'text-red-400'}>
+              {property.Elevator ? 'יש מעלית' : 'אין מעלית'}
+            </span>
+          </div>
+
+          {/* חניה */}
+          <div className={`flex items-center gap-3 p-3 rounded-lg ${
+            property.parking ? 'bg-green-900/30' : 'bg-red-900/30'
+          }`}>
+            <BsFillCarFrontFill className={`text-xl ${
+              property.parking ? 'text-green-500' : 'text-red-500'
+            }`} />
+            <span className={property.parking ? 'text-green-400' : 'text-red-400'}>
+              {property.parking ? 'יש חניה' : 'אין חניה'}
+            </span>
+          </div>
+
+          {/* ממ"ד */}
+          <div className={`flex items-center gap-3 p-3 rounded-lg ${
+            property.saferoom ? 'bg-green-900/30' : 'bg-red-900/30'
+          }`}>
+            <BsShieldFill className={`text-xl ${
+              property.saferoom ? 'text-green-500' : 'text-red-500'
+            }`} />
+            <span className={property.saferoom ? 'text-green-400' : 'text-red-400'}>
+              {property.saferoom ? 'יש ממ"ד' : 'אין ממ"ד'}
+            </span>
+          </div>
+
+          {/* מרפסת */}
+          <div className={`flex items-center gap-3 p-3 rounded-lg ${
+            property.Balcony ? 'bg-green-900/30' : 'bg-red-900/30'
+          }`}>
+            <BsWindow className={`text-xl ${
+              property.Balcony ? 'text-green-500' : 'text-red-500'
+            }`} />
+            <span className={property.Balcony ? 'text-green-400' : 'text-red-400'}>
+              {property.Balcony ? `מרפסת ${property.balcony_size}מ"ר` : 'אין מרפסת'}
+            </span>
+          </div>
+
+          {/* מיזוג */}
+          <div className={`flex items-center gap-3 p-3 rounded-lg ${
+            property.airways ? 'bg-green-900/30' : 'bg-red-900/30'
+          }`}>
+            <BsSnow className={`text-xl ${
+              property.airways ? 'text-green-500' : 'text-red-500'
+            }`} />
+            <span className={property.airways ? 'text-green-400' : 'text-red-400'}>
+              {property.airways ? 'יש מיזוג' : 'אין מיזוג'}
+            </span>
+          </div>
+
+          {/* מצב הנכס */}
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-900/50">
+            <BsTools className="text-xl text-yellow-500" />
+            <span>{property.condition}</span>
+          </div>
+
+          {/* תמ"א */}
+          {property.TMA_potential && (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-900/30">
+              <BsHouseFill className="text-xl text-blue-500" />
+              <span className="text-blue-400">פוטנציאל תמ"א</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -276,20 +585,36 @@ const SendMessage = () => {
   return (
     <Layout>
       <div className="container mx-auto p-8 bg-black rounded-xl shadow-2xl text-white">
-        <h1 className="text-4xl font-bold mb-8 text-yellow-500 text-center">
-          {isFromPropertiesPage
-            ? `פרטי הנכס: ${selectedProperties.map(p => p.street).join(' | ')}`
-            : `פרטי הלקוח: ${selectedCustomers.map(c => `${c.First_name} ${c.Last_name}`).join(' | ')}`}
-        </h1>
-
+        {isFromPropertiesPage ? (
+          selectedProperties.map(property => renderPropertyDetails(property))
+        ) : (
+          <h1 className="text-4xl font-bold mb-8 text-yellow-500 text-center">
+            פרטי הלקוח: {selectedCustomers.map(c => `${c.First_name} ${c.Last_name}`).join(' | ')}
+          </h1>
+        )}
+        
         <div className="flex justify-between items-center mb-4">
-          <input 
-            type="text" 
-            placeholder={isFromPropertiesPage ? "חפש לקוחות..." : "חפש נכסים..."} 
-            className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
-            value={searchQuery}
-            onChange={handleSearchChange}
-          />
+          <div className="flex items-center gap-4">
+            <input 
+              type="text" 
+              placeholder={isFromPropertiesPage ? "חפש לקוחות..." : "חפש נכסים..."} 
+              className="p-2 border border-yellow-500 rounded bg-gray-800 text-white"
+              value={searchQuery}
+              onChange={handleSearchChange}
+            />
+            {isFromPropertiesPage && (
+              <button
+                onClick={() => setSortByMatch(!sortByMatch)}
+                className={`px-4 py-2 rounded transition-colors ${
+                  sortByMatch 
+                    ? 'bg-yellow-500 text-black' 
+                    : 'bg-gray-700 text-white hover:bg-gray-600'
+                }`}
+              >
+                {sortByMatch ? '✓ ממוין לפי התאמה' : 'מיין לפי התאמה'}
+              </button>
+            )}
+          </div>
           <button 
             onClick={handleDeselectAll}
             className="px-4 py-2 bg-red-500 text-white font-semibold rounded shadow hover:bg-red-600 transition-colors"
@@ -306,38 +631,22 @@ const SendMessage = () => {
             <div className="overflow-y-auto max-h-96 space-y-4">
               {isFromPropertiesPage
                 ? filteredCustomers.map(customer => (
-                    <div 
+                    <CustomerCard 
                       key={customer.id} 
-                      className={`p-4 rounded-lg shadow-sm cursor-pointer transition duration-300 ${
-                        selectedCustomers.includes(customer) 
-                          ? 'bg-yellow-200 border-2 border-yellow-500' 
-                          : 'bg-black hover:bg-gray-700'
-                      }`}
-                      onClick={() => handleCustomerSelection(customer)}
-                    >
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedCustomers.includes(customer)}
-                          onChange={() => handleCustomerSelection(customer)}
-                          className="mr-3"
-                        />
-                        <div>
-                          <h3 className="text-lg font-bold text-white">{customer.First_name} {customer.Last_name}</h3>
-                          <p className="text-sm text-gray-400">תקציב: ₪{customer.Budget?.toLocaleString()}</p>
-                        </div>
-                      </div>
-                    </div>
+                      customer={customer} 
+                      property={selectedProperties[0]} 
+                      isSelected={selectedCustomers.includes(customer)} 
+                      onSelect={handleCustomerSelection}
+                    />
                   ))
                 : selectedProperties.map(property => (
-                    <div 
+                    <CustomerCard 
                       key={property.id} 
-                      className="p-4 rounded-lg shadow-sm bg-black border border-yellow-500"
-                    >
-<h3 className="text-lg font-bold text-white">{property.street}</h3>
-                      <p className="text-sm text-gray-400">₪{property.price?.toLocaleString()}</p>
-                      <p className="text-sm text-gray-400">{property.rooms} חדרים, {property.square_meters} מ"ר</p>
-                    </div>
+                      customer={selectedCustomers[0]} 
+                      property={property} 
+                      isSelected={selectedCustomers.includes(selectedCustomers[0])} 
+                      onSelect={handleCustomerSelection}
+                    />
                   ))
               }
             </div>
@@ -399,7 +708,7 @@ const SendMessage = () => {
 
             <div className="bg-gray-800 p-6 rounded-lg shadow-md">
               <h2 className="text-2xl font-semibold mb-4 text-yellow-500">תצוגה מקדימה</h2>
-              <div className="p-4 border border-yellow-500 rounded-lg bg-black text-white h-48 overflow-y-auto">
+              <div className="p-4 border border-yellow-500 rounded-lg bg-gray-900 text-white h-48 overflow-y-auto">
                 <p className="whitespace-pre-wrap">{previewMessage}</p>
               </div>
             </div>

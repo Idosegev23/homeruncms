@@ -6,6 +6,7 @@ const MatchPropertiesModal = ({ customer, properties, onClose, onSendMessage }) 
   const [selectedProperties, setSelectedProperties] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [criteriaVisibility, setCriteriaVisibility] = useState({}); // מצב להצגת קריטריונים לפי נכס
+  const [showLowMatches, setShowLowMatches] = useState(false);
 
   // פונקציה לבחירת נכס
   const togglePropertySelection = (property) => {
