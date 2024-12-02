@@ -435,6 +435,19 @@ const SendMessage = () => {
     );
   };
 
+  const isPositiveValue = (value) => {
+    if (!value) return false;
+    const stringValue = String(value).toLowerCase().trim();
+    
+    // אם מכיל את המילה "יש" או "כן" - זה חיובי
+    if (stringValue.includes('יש') || stringValue === 'כן') return true;
+    
+    // אם מכיל את המילה "אין" או "לא" - זה שלילי
+    if (stringValue.includes('אין') || stringValue === 'לא') return false;
+    
+    return false; // ברירת מחדל - אם לא בטוחים, נניח שאין
+  };
+
   const renderPropertyDetails = (property) => {
     return (
       <div className="bg-gray-800 p-6 rounded-lg mb-6 shadow-lg border border-gray-700">
@@ -493,72 +506,74 @@ const SendMessage = () => {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {/* מעלית */}
           <div className={`flex items-center gap-3 p-3 rounded-lg ${
-            property.Elevator ? 'bg-green-900/30' : 'bg-red-900/30'
+            isPositiveValue(property.Elevator) ? 'bg-green-900/30' : 'bg-red-900/30'
           }`}>
             <BsArrowUpSquare className={`text-xl ${
-              property.Elevator ? 'text-green-500' : 'text-red-500'
+              isPositiveValue(property.Elevator) ? 'text-green-500' : 'text-red-500'
             }`} />
-            <span className={property.Elevator ? 'text-green-400' : 'text-red-400'}>
-              {property.Elevator ? 'יש מעלית' : 'אין מעלית'}
+            <span className={isPositiveValue(property.Elevator) ? 'text-green-400' : 'text-red-400'}>
+              {isPositiveValue(property.Elevator) ? 'יש מעלית' : 'אין מעלית'}
             </span>
           </div>
 
           {/* חניה */}
           <div className={`flex items-center gap-3 p-3 rounded-lg ${
-            property.parking ? 'bg-green-900/30' : 'bg-red-900/30'
+            isPositiveValue(property.parking) ? 'bg-green-900/30' : 'bg-red-900/30'
           }`}>
             <BsFillCarFrontFill className={`text-xl ${
-              property.parking ? 'text-green-500' : 'text-red-500'
+              isPositiveValue(property.parking) ? 'text-green-500' : 'text-red-500'
             }`} />
-            <span className={property.parking ? 'text-green-400' : 'text-red-400'}>
-              {property.parking ? 'יש חניה' : 'אין חניה'}
+            <span className={isPositiveValue(property.parking) ? 'text-green-400' : 'text-red-400'}>
+              {isPositiveValue(property.parking) ? 'יש חניה' : 'אין חניה'}
             </span>
           </div>
 
           {/* ממ"ד */}
           <div className={`flex items-center gap-3 p-3 rounded-lg ${
-            property.saferoom ? 'bg-green-900/30' : 'bg-red-900/30'
+            isPositiveValue(property.saferoom) ? 'bg-green-900/30' : 'bg-red-900/30'
           }`}>
             <BsShieldFill className={`text-xl ${
-              property.saferoom ? 'text-green-500' : 'text-red-500'
+              isPositiveValue(property.saferoom) ? 'text-green-500' : 'text-red-500'
             }`} />
-            <span className={property.saferoom ? 'text-green-400' : 'text-red-400'}>
-              {property.saferoom ? 'יש ממ"ד' : 'אין ממ"ד'}
+            <span className={isPositiveValue(property.saferoom) ? 'text-green-400' : 'text-red-400'}>
+              {isPositiveValue(property.saferoom) ? 'יש ממ"ד' : 'אין ממ"ד'}
             </span>
           </div>
 
           {/* מרפסת */}
           <div className={`flex items-center gap-3 p-3 rounded-lg ${
-            property.Balcony ? 'bg-green-900/30' : 'bg-red-900/30'
+            isPositiveValue(property.Balcony) ? 'bg-green-900/30' : 'bg-red-900/30'
           }`}>
             <BsWindow className={`text-xl ${
-              property.Balcony ? 'text-green-500' : 'text-red-500'
+              isPositiveValue(property.Balcony) ? 'text-green-500' : 'text-red-500'
             }`} />
-            <span className={property.Balcony ? 'text-green-400' : 'text-red-400'}>
-              {property.Balcony ? `מרפסת ${property.balcony_size}מ"ר` : 'אין מרפסת'}
+            <span className={isPositiveValue(property.Balcony) ? 'text-green-400' : 'text-red-400'}>
+              {isPositiveValue(property.Balcony) ? 
+                (property.balcony_size ? `מרפסת ${property.balcony_size}מ"ר` : 'יש מרפסת') : 
+                'אין מרפסת'}
             </span>
           </div>
 
           {/* מיזוג */}
           <div className={`flex items-center gap-3 p-3 rounded-lg ${
-            property.airways ? 'bg-green-900/30' : 'bg-red-900/30'
+            isPositiveValue(property.airways) ? 'bg-green-900/30' : 'bg-red-900/30'
           }`}>
             <BsSnow className={`text-xl ${
-              property.airways ? 'text-green-500' : 'text-red-500'
+              isPositiveValue(property.airways) ? 'text-green-500' : 'text-red-500'
             }`} />
-            <span className={property.airways ? 'text-green-400' : 'text-red-400'}>
-              {property.airways ? 'יש מיזוג' : 'אין מיזוג'}
+            <span className={isPositiveValue(property.airways) ? 'text-green-400' : 'text-red-400'}>
+              {isPositiveValue(property.airways) ? 'יש מיזוג' : 'אין מיזוג'}
             </span>
           </div>
 
           {/* מצב הנכס */}
           <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-900/50">
             <BsTools className="text-xl text-yellow-500" />
-            <span>{property.condition}</span>
+            <span>{property.condition || 'לא צוין'}</span>
           </div>
 
           {/* תמ"א */}
-          {property.TMA_potential && (
+          {isPositiveValue(property.TMA_potential) && (
             <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-900/30">
               <BsHouseFill className="text-xl text-blue-500" />
               <span className="text-blue-400">פוטנציאל תמ"א</span>
