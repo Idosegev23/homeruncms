@@ -299,6 +299,13 @@ const SendMessage = () => {
         <span className="text-red-500 font-bold">✕</span>;
     };
 
+    const formatPropertyValue = (key, value) => {
+      if (key === 'Elevator' || key === 'parking' || key === 'saferoom') {
+        return isPositiveValue(value) ? 'יש' : 'אין';
+      }
+      return value;
+    };
+
     // פונקציה לקיצור רשימת הדרישות שלא מתקיימות
     const getShortDealBreakers = () => {
       if (!matchResult.dealBreakers?.length) return '';
@@ -370,7 +377,7 @@ const SendMessage = () => {
                         <th className="text-right pb-2">פרמטר</th>
                         <th className="text-right pb-2">ערך נדרש</th>
                         <th className="text-right pb-2">ערך בנכס</th>
-                        <th className="text-center pb-2">התאה</th>
+                        <th className="text-center pb-2">התאמה</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -395,19 +402,19 @@ const SendMessage = () => {
                       <tr>
                         <td className="py-1">מעלית</td>
                         <td className="py-1">{customer.Elevator === 'must_yes' ? 'חובה' : 'לא חובה'}</td>
-                        <td className="py-1">{property.Elevator ? 'יש' : 'אין'}</td>
+                        <td className="py-1">{formatPropertyValue('Elevator', property.Elevator)}</td>
                         <td className="text-center">{renderMatchIndicator(matchResult.matchDetails.elevator)}</td>
                       </tr>
                       <tr>
                         <td className="py-1">חניה</td>
                         <td className="py-1">{customer.parking === 'must_yes' ? 'חובה' : 'לא חובה'}</td>
-                        <td className="py-1">{property.parking ? 'יש' : 'אין'}</td>
+                        <td className="py-1">{formatPropertyValue('parking', property.parking)}</td>
                         <td className="text-center">{renderMatchIndicator(matchResult.matchDetails.parking)}</td>
                       </tr>
                       <tr>
                         <td className="py-1">ממ"ד</td>
                         <td className="py-1">{customer.saferoom === 'must_yes' ? 'חובה' : 'לא חובה'}</td>
-                        <td className="py-1">{property.saferoom ? 'יש' : 'אין'}</td>
+                        <td className="py-1">{formatPropertyValue('saferoom', property.saferoom)}</td>
                         <td className="text-center">{renderMatchIndicator(matchResult.matchDetails.saferoom)}</td>
                       </tr>
                     </tbody>
@@ -590,7 +597,7 @@ const SendMessage = () => {
         <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-center z-50">
           <div className="bg-black p-6 rounded-lg shadow-xl">
             <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-yellow-500 mx-auto"></div>
-            <p className="mt-4 text-lg font-semibold text-white">טוען נתונים...</p>
+            <p className="mt-4 text-lg font-semibold text-white">טוע�� נתונים...</p>
           </div>
         </div>
       </Layout>
