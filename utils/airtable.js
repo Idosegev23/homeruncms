@@ -301,7 +301,7 @@ const validateCustomerData = (data) => {
   const validOptions = ["yes", "no", "must_yes", "must_no"];
   if (!validOptions.includes(data.investment)) errors.push("ערך לא תקין עבור שדה השקעה");
   if (!validOptions.includes(data.land_floor)) errors.push("ערך לא תקין עבור שדה קומת קרקע");
-  if (data.garden_apt && !validOptions.includes(data.garden_apt)) errors.push("ערך לא תקין עבור שדה דירת גן");
+  if (data.garden_apt && !validOptions.includes(data.garden_apt)) errors.push("ערך לא תקין עבור שדה דית גן");
   if (!validOptions.includes(data.quiet)) errors.push("ערך לא תקין עבור שדה שקט");
   if (!validOptions.includes(data.Elevator)) errors.push("ערך לא תקין עבור שדה מעלית");
   if (!validOptions.includes(data.parking)) errors.push("ערך לא תקין עבור שדה חניה");
@@ -329,24 +329,50 @@ const validateCustomerData = (data) => {
 
 export const fetchProperties = async () => {
   const records = await base('Properties').select().all();
-  return records.map(record => ({
-    id: record.id,
-    price: record.get('price'),
-    rooms: record.get('rooms'),
-    square_meters: record.get('square_meters'),
-    floor: record.get('floor'),
-    max_floor: record.get('max_floor'),
-    street: record.get('street'),
-    Elevator: record.get('Elevator'),
-    parking: record.get('parking'),
-    saferoom: record.get('saferoom'),
-    condition: record.get('condition'),
-    potential: record.get('potential'),
-    Balcony: record.get('Balcony'),
-    airways: record.get('airways'),
-    balcony_size: record.get('balcony_size'),
-    imageurl: record.get('imageurl'),
-  }));
+  return records.map(record => {
+    // נקה את הנתונים לפני החזרתם
+    const cleanValue = (value) => {
+      if (!value) return false;
+      if (typeof value === 'string') {
+        // אם המחרוזת ריקה
+        if (value.trim() === '') return false;
+        // אם המחרוזת מכילה מספר (למשל "2 רגילות")
+        if (value.match(/\d+/)) return true;
+        // אם המחרוזת מכילה את המילה "משותפת" או "רגילה"
+        if (value.includes('משותפת') || value.includes('רגילה')) return true;
+        // אם המחרוזת מכילה "אין"
+        if (value.includes('אין')) return false;
+        // אם המחרוזת מכילה "יש"
+        if (value.includes('יש')) return true;
+      }
+      return Boolean(value);
+    };
+
+    const price = record.get('price');
+    // מנקה את הסימן ₪ ומסיר פסיקים אם יש
+    const cleanPrice = typeof price === 'string' ? 
+      Number(price.replace('₪', '').replace(/,/g, '')) : 
+      price;
+
+    return {
+      id: record.id,
+      price: cleanPrice,
+      rooms: record.get('rooms'),
+      square_meters: record.get('square_meters'),
+      floor: record.get('floor'),
+      max_floor: record.get('max_floor'),
+      street: record.get('street'),
+      Elevator: cleanValue(record.get('Elevator')),
+      parking: cleanValue(record.get('parking')),
+      saferoom: cleanValue(record.get('saferoom')),
+      condition: record.get('condition'),
+      potential: record.get('potential'),
+      Balcony: cleanValue(record.get('Balcony')),
+      airways: cleanValue(record.get('airways')),
+      balcony_size: record.get('balcony_size'),
+      imageurl: record.get('imageurl'),
+    };
+  });
 };
 
 export const getRelevantProperties = (customer, properties = []) => {

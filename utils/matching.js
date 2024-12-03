@@ -98,6 +98,38 @@ export const getAllCriteria = (customer, property) => {
   return criteria;
 };
 
+const hasFeature = (value) => {
+  if (!value) return false;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const text = value.trim().toLowerCase();
+    
+    // אם זה מספר - נחשיב כחיובי אם גדול מ-0
+    if (!isNaN(text)) {
+      return Number(text) > 0;
+    }
+    
+    // מילים שמשמעותן חיובי
+    const positiveWords = ['יש', 'כן', 'true', 'yes', 'קיים'];
+    if (positiveWords.some(word => text.includes(word))) return true;
+    
+    // מילים שמשמעותן שלילי
+    const negativeWords = ['אין', 'לא', 'false', 'no'];
+    if (negativeWords.some(word => text.includes(word))) return false;
+    
+    // אם יש מספר בתוך הטקסט - נחשיב כחיובי
+    const numbers = text.match(/\d+/);
+    if (numbers) return true;
+  }
+  
+  // אם זה מספר
+  if (typeof value === 'number') {
+    return value > 0;
+  }
+  
+  return false;
+};
+
 export const calculateMatchPercentage = (property, customer) => {
   let totalScore = 0;
   let dealBreakers = [];
@@ -146,26 +178,25 @@ export const calculateMatchPercentage = (property, customer) => {
   }
 
   // Elevator check (8%)
-  const elevatorScore = property.Elevator ? 8 : 0;
+  const hasElevator = hasFeature(property.Elevator);
+  const elevatorScore = hasElevator ? 8 : 0;
   matchDetails.elevator = {
     score: elevatorScore,
-    details: `מעלית נדרשת: ${customer.Elevator === 'must_yes' ? 'כן' : 'לא'} | קיימת בנכס: ${property.Elevator ? 'כן' : 'לא'}`
+    details: `מעלית נדרשת: ${customer.Elevator === 'must_yes' ? 'כן' : 'לא'} | קיימת בנכס: ${hasElevator ? 'כן' : 'לא'}`
   };
-  if (customer.Elevator === 'must_yes' && !property.Elevator) {
+  if (customer.Elevator === 'must_yes' && !hasElevator) {
     dealBreakers.push('חובה מעלית');
   }
   totalScore += elevatorScore;
 
   // Parking check (8%)
-  let parkingScore = 0;
-  if (property.parking) {
-    parkingScore = property.parking_type === 'shared' ? 4 : 8;
-  }
+  const hasParking = hasFeature(property.parking);
+  let parkingScore = hasParking ? 8 : 0;
   matchDetails.parking = {
     score: parkingScore,
-    details: `חניה נדרשת: ${customer.parking === 'must_yes' ? 'כן' : 'לא'} | סוג: ${property.parking_type || 'אין'}`
+    details: `חניה נדרשת: ${customer.parking === 'must_yes' ? 'כן' : 'לא'} | סיימת בנכס: ${hasParking ? 'כן' : 'לא'}`
   };
-  if (customer.parking === 'must_yes' && !property.parking) {
+  if (customer.parking === 'must_yes' && !hasParking) {
     dealBreakers.push('חובה חניה');
   }
   totalScore += parkingScore;
@@ -182,12 +213,13 @@ export const calculateMatchPercentage = (property, customer) => {
   totalScore += areaScore;
 
   // Safe room check (8%)
-  const saferoomScore = property.saferoom ? 8 : 0;
+  const hasSaferoom = hasFeature(property.saferoom);
+  const saferoomScore = hasSaferoom ? 8 : 0;
   matchDetails.saferoom = {
     score: saferoomScore,
-    details: `ממ"ד נדרש: ${customer.saferoom === 'must_yes' ? 'כן' : 'לא'} | קיים בנכס: ${property.saferoom ? 'כן' : 'לא'}`
+    details: `ממ"ד נדרש: ${customer.saferoom === 'must_yes' ? 'כן' : 'לא'} | קיים בנכס: ${hasSaferoom ? 'כן' : 'לא'}`
   };
-  if (customer.saferoom === 'must_yes' && !property.saferoom) {
+  if (customer.saferoom === 'must_yes' && !hasSaferoom) {
     dealBreakers.push('חובה ממ"ד');
   }
   totalScore += saferoomScore;
