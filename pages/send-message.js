@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { fetchProperties, fetchCustomers, fetchChatRecords, createChatRecords } from '../utils/airtable';
+import { fetchProperties, fetchCustomers } from '../utils/airtable';
 import Layout from '../components/Layout';
 import greenApi from '../utils/greenApi';
 import { calculateMatchPercentage } from '../utils/matching';
@@ -16,8 +16,103 @@ import {
   BsSnow,
   BsTools,
   BsHouseFill,
-  BsPinMap
+  BsPinMap,
+  BsCalendarCheck,
+  BsImage,
+  BsFile
 } from 'react-icons/bs';
+
+const PropertyDetails = React.memo(({ property }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className="bg-gray-800 p-4 rounded-lg mb-4 shadow-lg border border-gray-700">
+      <div className="flex items-center justify-between cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-bold text-yellow-500 flex items-center gap-3">
+            <BsBuilding className="text-xl" />
+            <span>{property.street}</span>
+          </h2>
+          <div className="flex items-center gap-4 text-lg">
+            <span className="text-yellow-500">{property.price?.toLocaleString()} ₪</span>
+            <span className="text-gray-400">|</span>
+            <span className="text-gray-300">{property.rooms} חדרים</span>
+            <span className="text-gray-400">|</span>
+            <span className="text-gray-300">{property.square_meters} מ"ר</span>
+            <span className="text-gray-400">|</span>
+            <span className="text-gray-300">קומה {property.floor}</span>
+          </div>
+        </div>
+        <button className="text-yellow-500 transition-transform duration-300" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+          ▼
+        </button>
+      </div>
+
+      {isExpanded && (
+        <div className="mt-4 border-t border-gray-700 pt-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className={`flex items-center gap-3 p-3 rounded-lg ${
+              property.Elevator ? 'bg-green-900/30' : 'bg-red-900/30'
+            }`}>
+              <BsArrowUpSquare className={property.Elevator ? 'text-green-500' : 'text-red-500'} />
+              <span className={property.Elevator ? 'text-green-400' : 'text-red-400'}>
+                {property.Elevator ? 'יש מעלית' : 'אין מעלית'}
+              </span>
+            </div>
+
+            <div className={`flex items-center gap-3 p-3 rounded-lg ${
+              property.parking ? 'bg-green-900/30' : 'bg-red-900/30'
+            }`}>
+              <BsFillCarFrontFill className={property.parking ? 'text-green-500' : 'text-red-500'} />
+              <span className={property.parking ? 'text-green-400' : 'text-red-400'}>
+                {property.parking ? 'יש חניה' : 'אין חניה'}
+              </span>
+            </div>
+
+            <div className={`flex items-center gap-3 p-3 rounded-lg ${
+              property.saferoom ? 'bg-green-900/30' : 'bg-red-900/30'
+            }`}>
+              <BsShieldFill className={property.saferoom ? 'text-green-500' : 'text-red-500'} />
+              <span className={property.saferoom ? 'text-green-400' : 'text-red-400'}>
+                {property.saferoom ? 'יש ממ"ד' : 'אין ממ"ד'}
+              </span>
+            </div>
+
+            <div className={`flex items-center gap-3 p-3 rounded-lg ${
+              property.Balcony ? 'bg-green-900/30' : 'bg-red-900/30'
+            }`}>
+              <BsWindow className={property.Balcony ? 'text-green-500' : 'text-red-500'} />
+              <span className={property.Balcony ? 'text-green-400' : 'text-red-400'}>
+                {property.Balcony ? 'יש מרפסת' : 'אין מרפסת'}
+              </span>
+            </div>
+
+            <div className={`flex items-center gap-3 p-3 rounded-lg ${
+              property.airways ? 'bg-green-900/30' : 'bg-red-900/30'
+            }`}>
+              <BsSnow className={property.airways ? 'text-green-500' : 'text-red-500'} />
+              <span className={property.airways ? 'text-green-400' : 'text-red-400'}>
+                {property.airways ? 'יש מיזוג' : 'אין מיזוג'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-900/50">
+              <BsTools className="text-xl text-yellow-500" />
+              <span>{property.condition || 'לא צוין'}</span>
+            </div>
+
+            {property.TMA_potential && (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-900/30">
+                <BsHouseFill className="text-xl text-blue-500" />
+                <span className="text-blue-400">פוטנציאל תמ"א</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
 
 const SendMessage = () => {
   const router = useRouter();
@@ -34,10 +129,11 @@ const SendMessage = () => {
   const [sendingFeedback, setSendingFeedback] = useState("");
   const [isFromPropertiesPage, setIsFromPropertiesPage] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMedia, setSelectedMedia] = useState(null);
-  const [mediaPreview, setMediaPreview] = useState(null);
-  const fileInputRef = useRef(null);
   const [sortByMatch, setSortByMatch] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState([]);
+  const [scheduledTime, setScheduledTime] = useState('');
+  const fileInputRef = useRef(null);
+  const [mediaPreview, setMediaPreview] = useState([]);
 
   const customerTags = [
     '{{שם פרטי}}', '{{שם משפחה}}', '{{טלפון}}', '{{תקציב}}',
@@ -48,7 +144,7 @@ const SendMessage = () => {
     '{{מחיר נכס}}', '{{חדרים בנכס}}', '{{מ"ר בנכס}}', '{{קומה בנכס}}',
     '{{קומה מקסימלית בנכס}}', '{{רחוב בנכס}}', '{{מעלית}}',
     '{{חניה}}', '{{ממ"ד}}', '{{מצב הנכס}}', '{{פוטנציאל תמ"א}}', '{{מרפסת}}',
-    '{{מיזוג אוויר}}', '{{קמפיין}}','{{מ״ר מרפסת}}'
+    '{{מיזוג אוויר}}', '{{קמפיין}}'
   ];
 
   useEffect(() => {
@@ -126,27 +222,7 @@ const SendMessage = () => {
     setSearchQuery(e.target.value.toLowerCase());
   };
 
-  const handleMediaSelect = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setSelectedMedia(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setMediaPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeSelectedMedia = () => {
-    setSelectedMedia(null);
-    setMediaPreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const filteredCustomers = useMemo(() => {
+  const filteredCustomers = React.useMemo(() => {
     let filtered = customers.filter(customer => {
       const firstName = customer.First_name || '';
       const lastName = customer.Last_name || '';
@@ -200,21 +276,32 @@ const SendMessage = () => {
       .replace(/{{פוטנציאל תמ"א}}/g, property.TMA_potential)
       .replace(/{{מרפסת}}/g, property.Balcony)
       .replace(/{{מיזוג אוויר}}/g, property.airways)
-      .replace(/{{מ״ר מרפסת}}/g, property.balcony_size)
       .replace(/{{קמפיין}}/g, property.Campaigns);
   };
 
-  const sendMediaMessage = async (chatId, caption) => {
-    if (!selectedMedia) return;
+  const handleMediaSelect = (event) => {
+    const files = Array.from(event.target.files);
+    setSelectedMedia(prev => [...prev, ...files]);
+    
+    files.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setMediaPreview(prev => [...prev, { type: 'image', url: reader.result, file }]);
+        };
+        reader.readAsDataURL(file);
+      } else if (file.type.startsWith('video/')) {
+        const url = URL.createObjectURL(file);
+        setMediaPreview(prev => [...prev, { type: 'video', url, file }]);
+      } else {
+        setMediaPreview(prev => [...prev, { type: 'file', name: file.name, size: file.size, file }]);
+      }
+    });
+  };
 
-    try {
-      const result = await greenApi.sendFile(chatId, selectedMedia, selectedMedia.name, caption);
-      console.log(`Media sent successfully for ${chatId}:`, result);
-      return result;
-    } catch (error) {
-      console.error('Failed to send media:', error);
-      throw error;
-    }
+  const removeMedia = (index) => {
+    setSelectedMedia(prev => prev.filter((_, i) => i !== index));
+    setMediaPreview(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSendMessage = async () => {
@@ -224,6 +311,8 @@ const SendMessage = () => {
     let successCount = 0;
     let failCount = 0;
     let queuedCount = 0;
+
+    const isScheduled = scheduledTime && new Date(scheduledTime) > new Date();
 
     for (const customer of selectedCustomers) {
       const chatId = greenApi.formatPhoneNumber(customer.Cell);
@@ -237,42 +326,52 @@ const SendMessage = () => {
         if (i < selectedProperties.length - 1) {
           fullMessage += '\n\n_____\n\n';
         }
-
-        if (isFromPropertiesPage && selectedMedia) {
-          try {
-            await sendMediaMessage(chatId, fullMessage);
-            console.log(`Media sent for property: ${property.street}`);
-            fullMessage = ''; // Reset fullMessage after sending media with caption
-          } catch (error) {
-            console.error(`Failed to send media for property: ${property.street}`, error);
-          }
-        }
       }
 
-      // Send text message if there's any remaining message content
-      if (fullMessage) {
-        try {
+      try {
+        if (isScheduled) {
+          greenApi.addToQueue(chatId, fullMessage, 'text', null, '', null, new Date(scheduledTime).getTime());
+          queuedCount++;
+          
+          if (selectedMedia.length > 0) {
+            for (const media of selectedMedia) {
+              greenApi.addToQueue(chatId, '', 'file', media, fullMessage, null, new Date(scheduledTime).getTime());
+            }
+          }
+        } else {
           const result = await greenApi.sendMessage(chatId, fullMessage);
+          
+          if (selectedMedia.length > 0) {
+            for (const media of selectedMedia) {
+              await greenApi.sendFile(chatId, media);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+
           if (result.status === 'queued') {
             queuedCount++;
           } else {
             successCount++;
           }
-          console.log(`Message ${result.status} for ${customer.First_name} ${customer.Last_name}`);
-        } catch (error) {
-          console.error(`Failed to send message to ${customer.First_name} ${customer.Last_name}:`, error);
-          failCount++;
         }
+        
+        console.log(`Message ${isScheduled ? 'scheduled' : 'sent'} for ${customer.First_name} ${customer.Last_name}`);
+      } catch (error) {
+        console.error(`Failed to ${isScheduled ? 'schedule' : 'send'} message to ${customer.First_name} ${customer.Last_name}:`, error);
+        failCount++;
       }
 
-      // Wait for 15 seconds between messages
       if (selectedCustomers.indexOf(customer) < selectedCustomers.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 15000));
       }
     }
 
     setSending(false);
-    setSendingFeedback(`נשלחו ${successCount} הודעות, ${queuedCount} בתור, ${failCount} נכשלו.`);
+    if (isScheduled) {
+      setSendingFeedback(`תוזמנו ${queuedCount} הודעות לשליחה ב-${new Date(scheduledTime).toLocaleString('he-IL')}`);
+    } else {
+      setSendingFeedback(`נשלחו ${successCount} הודעות, ${queuedCount} בתור, ${failCount} נכשלו.`);
+    }
 
     const stats = greenApi.getMessageStats();
     if (stats.dailyCount >= 200) {
@@ -288,6 +387,22 @@ const SendMessage = () => {
     }
   }, [message, selectedCustomers, selectedProperties]);
 
+  const handleSelectAll = () => {
+    if (isFromPropertiesPage) {
+      if (selectedCustomers.length === filteredCustomers.length) {
+        setSelectedCustomers([]);
+      } else {
+        setSelectedCustomers(filteredCustomers);
+      }
+    } else {
+      if (selectedProperties.length === filteredProperties.length) {
+        setSelectedProperties([]);
+      } else {
+        setSelectedProperties(filteredProperties);
+      }
+    }
+  };
+
   const CustomerCard = ({ customer, property, isSelected, onSelect }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const matchResult = calculateMatchPercentage(property, customer);
@@ -301,16 +416,14 @@ const SendMessage = () => {
 
     const formatPropertyValue = (key, value) => {
       if (key === 'Elevator' || key === 'parking' || key === 'saferoom') {
-        return isPositiveValue(value) ? 'יש' : 'אין';
+        return value ? 'יש' : 'אין';
       }
       return value;
     };
 
-    // פונקציה לקיצור רשימת הדרישות שלא מתקיימות
     const getShortDealBreakers = () => {
-      if (!matchResult.dealBreakers?.length) return '';
+      if (!matchResult?.dealBreakers?.length) return '';
       return matchResult.dealBreakers.map(warning => {
-        // מקצר כל אזהרה למילה אחת
         if (warning.includes('מעלית')) return 'מעלית';
         if (warning.includes('חניה')) return 'חניה';
         if (warning.includes('ממ"ד')) return 'ממ"ד';
@@ -329,7 +442,6 @@ const SendMessage = () => {
       <div className={`p-4 rounded-lg shadow-sm mb-4 transition-all duration-300 ${
         isSelected ? 'bg-gray-900 border-2 border-yellow-500' : 'bg-gray-800'
       }`}>
-        {/* כרטיס מצומצם */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h3 className="text-xl font-bold text-yellow-500">
@@ -363,11 +475,9 @@ const SendMessage = () => {
           </div>
         </div>
 
-        {/* פרטים מורחבים */}
         {isExpanded && (
           <div className="mt-4 border-t border-gray-700 pt-4">
             <div className="flex flex-col md:flex-row gap-6">
-              {/* טבלת התאמות */}
               <div className="flex-1">
                 <h4 className="text-lg font-semibold text-yellow-500 mb-3">פרטי התאמה</h4>
                 <div className="overflow-x-auto">
@@ -422,7 +532,6 @@ const SendMessage = () => {
                 </div>
               </div>
 
-              {/* דרישות שלא מתקיימות */}
               {matchResult.dealBreakers?.length > 0 && (
                 <div className="md:w-1/3">
                   <h4 className="text-lg font-semibold text-red-500 mb-3">דרישות שלא מתקיימות</h4>
@@ -442,162 +551,13 @@ const SendMessage = () => {
     );
   };
 
-  const isPositiveValue = (value) => {
-    if (!value) return false;
-    const stringValue = String(value).toLowerCase().trim();
-    
-    // אם מכיל את המילה "יש" או "כן" - זה חיובי
-    if (stringValue.includes('יש') || stringValue === 'כן') return true;
-    
-    // אם מכיל את המילה "אין" או "לא" - זה שלילי
-    if (stringValue.includes('אין') || stringValue === 'לא') return false;
-    
-    return false; // ברירת מחדל - אם לא בטוחים, נניח שאין
-  };
-
-  const renderPropertyDetails = (property) => {
-    return (
-      <div className="bg-gray-800 p-6 rounded-lg mb-6 shadow-lg border border-gray-700">
-        {/* כותרת */}
-        <div className="border-b border-gray-700 pb-4 mb-6">
-          <h2 className="text-3xl font-bold text-yellow-500 flex items-center gap-3">
-            <BsBuilding className="text-2xl" />
-            <span>{property.street}</span>
-          </h2>
-          <div className="mt-2 text-gray-400 flex items-center gap-2">
-            <BsPinMap />
-            <span>{property.Area}</span>
-          </div>
-        </div>
-
-        {/* פרטים עיקריים */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-6">
-          {/* מחיר */}
-          <div className="bg-gray-900 p-4 rounded-lg">
-            <div className="flex items-center gap-2 text-yellow-500 mb-1 text-sm">
-              <BsCash />
-              <span>מחיר</span>
-            </div>
-            <div className="text-xl font-bold">{property.price?.toLocaleString()} ₪</div>
-          </div>
-
-          {/* חדרים */}
-          <div className="bg-gray-900 p-4 rounded-lg">
-            <div className="flex items-center gap-2 text-yellow-500 mb-1 text-sm">
-              <BsDoorOpen />
-              <span>חדרים</span>
-            </div>
-            <div className="text-xl font-bold">{property.rooms}</div>
-          </div>
-
-          {/* מ"ר */}
-          <div className="bg-gray-900 p-4 rounded-lg">
-            <div className="flex items-center gap-2 text-yellow-500 mb-1 text-sm">
-              <BsRulers />
-              <span>שטח</span>
-            </div>
-            <div className="text-xl font-bold">{property.square_meters} מ"ר</div>
-          </div>
-
-          {/* קומה */}
-          <div className="bg-gray-900 p-4 rounded-lg">
-            <div className="flex items-center gap-2 text-yellow-500 mb-1 text-sm">
-              <BsBuilding />
-              <span>קומה</span>
-            </div>
-            <div className="text-xl font-bold">{property.floor} מתוך {property.max_floor}</div>
-          </div>
-        </div>
-
-        {/* מאפיינים */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {/* מעלית */}
-          <div className={`flex items-center gap-3 p-3 rounded-lg ${
-            isPositiveValue(property.Elevator) ? 'bg-green-900/30' : 'bg-red-900/30'
-          }`}>
-            <BsArrowUpSquare className={`text-xl ${
-              isPositiveValue(property.Elevator) ? 'text-green-500' : 'text-red-500'
-            }`} />
-            <span className={isPositiveValue(property.Elevator) ? 'text-green-400' : 'text-red-400'}>
-              {isPositiveValue(property.Elevator) ? 'יש מעלית' : 'אין מעלית'}
-            </span>
-          </div>
-
-          {/* חניה */}
-          <div className={`flex items-center gap-3 p-3 rounded-lg ${
-            isPositiveValue(property.parking) ? 'bg-green-900/30' : 'bg-red-900/30'
-          }`}>
-            <BsFillCarFrontFill className={`text-xl ${
-              isPositiveValue(property.parking) ? 'text-green-500' : 'text-red-500'
-            }`} />
-            <span className={isPositiveValue(property.parking) ? 'text-green-400' : 'text-red-400'}>
-              {isPositiveValue(property.parking) ? 'יש חניה' : 'אין חניה'}
-            </span>
-          </div>
-
-          {/* ממ"ד */}
-          <div className={`flex items-center gap-3 p-3 rounded-lg ${
-            isPositiveValue(property.saferoom) ? 'bg-green-900/30' : 'bg-red-900/30'
-          }`}>
-            <BsShieldFill className={`text-xl ${
-              isPositiveValue(property.saferoom) ? 'text-green-500' : 'text-red-500'
-            }`} />
-            <span className={isPositiveValue(property.saferoom) ? 'text-green-400' : 'text-red-400'}>
-              {isPositiveValue(property.saferoom) ? 'יש ממ"ד' : 'אין ממ"ד'}
-            </span>
-          </div>
-
-          {/* מרפסת */}
-          <div className={`flex items-center gap-3 p-3 rounded-lg ${
-            isPositiveValue(property.Balcony) ? 'bg-green-900/30' : 'bg-red-900/30'
-          }`}>
-            <BsWindow className={`text-xl ${
-              isPositiveValue(property.Balcony) ? 'text-green-500' : 'text-red-500'
-            }`} />
-            <span className={isPositiveValue(property.Balcony) ? 'text-green-400' : 'text-red-400'}>
-              {isPositiveValue(property.Balcony) ? 
-                (property.balcony_size ? `מרפסת ${property.balcony_size}מ"ר` : 'יש מרפסת') : 
-                'אין מרפסת'}
-            </span>
-          </div>
-
-          {/* מיזוג */}
-          <div className={`flex items-center gap-3 p-3 rounded-lg ${
-            isPositiveValue(property.airways) ? 'bg-green-900/30' : 'bg-red-900/30'
-          }`}>
-            <BsSnow className={`text-xl ${
-              isPositiveValue(property.airways) ? 'text-green-500' : 'text-red-500'
-            }`} />
-            <span className={isPositiveValue(property.airways) ? 'text-green-400' : 'text-red-400'}>
-              {isPositiveValue(property.airways) ? 'יש מיזוג' : 'אין מיזוג'}
-            </span>
-          </div>
-
-          {/* מצב הנכס */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-900/50">
-            <BsTools className="text-xl text-yellow-500" />
-            <span>{property.condition || 'לא צוין'}</span>
-          </div>
-
-          {/* תמ"א */}
-          {isPositiveValue(property.TMA_potential) && (
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-900/30">
-              <BsHouseFill className="text-xl text-blue-500" />
-              <span className="text-blue-400">פוטנציאל תמ"א</span>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   if (loading) {
     return (
       <Layout>
         <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-center z-50">
           <div className="bg-black p-6 rounded-lg shadow-xl">
             <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-yellow-500 mx-auto"></div>
-            <p className="mt-4 text-lg font-semibold text-white">טוע�� נתונים...</p>
+            <p className="mt-4 text-lg font-semibold text-white">טוען נתונים...</p>
           </div>
         </div>
       </Layout>
@@ -608,7 +568,9 @@ const SendMessage = () => {
     <Layout>
       <div className="container mx-auto p-8 bg-black rounded-xl shadow-2xl text-white">
         {isFromPropertiesPage ? (
-          selectedProperties.map(property => renderPropertyDetails(property))
+          selectedProperties.map(property => (
+            <PropertyDetails key={property.id} property={property} />
+          ))
         ) : (
           <h1 className="text-4xl font-bold mb-8 text-yellow-500 text-center">
             פרטי הלקוח: {selectedCustomers.map(c => `${c.First_name} ${c.Last_name}`).join(' | ')}
@@ -637,12 +599,23 @@ const SendMessage = () => {
               </button>
             )}
           </div>
-          <button 
-            onClick={handleDeselectAll}
-            className="px-4 py-2 bg-red-500 text-white font-semibold rounded shadow hover:bg-red-600 transition-colors"
-          >
-            בטל בחירת הכל
-          </button>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={handleSelectAll}
+              className="px-4 py-2 bg-yellow-500 text-black font-semibold rounded shadow hover:bg-yellow-600 transition-colors"
+            >
+              {isFromPropertiesPage ? 
+                (selectedCustomers.length === filteredCustomers.length ? 'בטל בחירת הכל' : 'בחר הכל') :
+                (selectedProperties.length === filteredProperties.length ? 'בטל בחירת הכל' : 'בחר הכל')
+              }
+            </button>
+            <button 
+              onClick={handleDeselectAll}
+              className="px-4 py-2 bg-red-500 text-white font-semibold rounded shadow hover:bg-red-600 transition-colors"
+            >
+              נקה בחירה
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-8">
@@ -683,22 +656,57 @@ const SendMessage = () => {
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="הקלד כאן את ההודעה שלך..."
               />
-              {isFromPropertiesPage && (
-               <div className="mb-4">
-               <h3 className="text-lg font-bold mb-2 text-yellow-500">הוספת מדיה</h3>
-               <div className="relative inline-block">
-                 <button 
-                   className="px-4 py-2 bg-blue-500 text-white rounded-lg opacity-50 cursor-not-allowed transition duration-300"
-                   disabled
-                 >
-                   בחר תמונה/וידאו
-                 </button>
-                 <span className="absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2 bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full animate-pulse">
-                   בבנייה
-                 </span>
-               </div>
-             </div>
-              )}
+
+              <div className="mb-4">
+                <h3 className="text-lg font-bold mb-2 text-yellow-500">הוספת מדיה</h3>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
+                  >
+                    <BsImage />
+                    <span>בחר קבצים</span>
+                  </button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleMediaSelect}
+                    className="hidden"
+                    multiple
+                    accept="image/*,video/*,application/*"
+                  />
+                </div>
+
+                {selectedMedia.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {selectedMedia.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between bg-gray-700 p-2 rounded">
+                        <span className="text-sm">{file.name}</span>
+                        <button
+                          onClick={() => removeMedia(index)}
+                          className="text-red-500 hover:text-red-400"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <h3 className="text-lg font-bold mb-2 text-yellow-500 flex items-center gap-2">
+                  <BsCalendarCheck />
+                  <span>תזמון שליחה</span>
+                </h3>
+                <input
+                  type="datetime-local"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                  className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white"
+                />
+              </div>
+
               <div className="mb-4">
                 <h3 className="text-lg font-bold mb-2 text-yellow-500">תגיות לקוח</h3>
                 <div className="flex flex-wrap gap-2 mb-4">
@@ -730,19 +738,86 @@ const SendMessage = () => {
 
             <div className="bg-gray-800 p-6 rounded-lg shadow-md">
               <h2 className="text-2xl font-semibold mb-4 text-yellow-500">תצוגה מקדימה</h2>
-              <div className="p-4 border border-yellow-500 rounded-lg bg-gray-900 text-white h-48 overflow-y-auto">
-                <p className="whitespace-pre-wrap">{previewMessage}</p>
+              <div className="space-y-4">
+                <div className="p-4 border border-yellow-500 rounded-lg bg-gray-900 text-white h-48 overflow-y-auto">
+                  <p className="whitespace-pre-wrap">{previewMessage}</p>
+                </div>
+
+                {mediaPreview.length > 0 && (
+                  <div className="border border-yellow-500 rounded-lg bg-gray-900 p-4">
+                    <h3 className="text-lg font-semibold mb-4 text-yellow-500">קבצים מצורפים:</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {mediaPreview.map((media, index) => (
+                        <div key={index} className="relative group">
+                          {media.type === 'image' && (
+                            <div className="relative aspect-video">
+                              <img 
+                                src={media.url} 
+                                alt="תצוגה מקדימה"
+                                className="rounded-lg object-cover w-full h-full"
+                              />
+                            </div>
+                          )}
+                          {media.type === 'video' && (
+                            <div className="relative aspect-video">
+                              <video 
+                                src={media.url} 
+                                controls
+                                className="rounded-lg w-full h-full"
+                              />
+                            </div>
+                          )}
+                          {media.type === 'file' && (
+                            <div className="flex items-center gap-2 p-4 bg-gray-700 rounded-lg">
+                              <BsFile className="text-yellow-500 text-2xl" />
+                              <div>
+                                <p className="text-sm font-medium">{media.name}</p>
+                                <p className="text-xs text-gray-400">
+                                  {(media.size / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => removeMedia(index)}
+                            className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="flex justify-between">
-              <button 
-                className="px-6 py-3 bg-yellow-500 text-black rounded-lg hover:bg-yellow-600 transition duration-300 flex items-center"
-                onClick={handleSendMessage}
-                disabled={sending}
-              >
-                {sending ? 'שולח...' : 'שלח עכשיו'}
-              </button>
+            <div className="flex justify-between items-center gap-4 mt-4">
+              {scheduledTime ? (
+                <button 
+                  className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleSendMessage}
+                  disabled={sending || (!message.trim() && selectedMedia.length === 0) || new Date(scheduledTime) <= new Date()}
+                >
+                  <BsCalendarCheck />
+                  <span>תזמן שליחה ל-{new Date(scheduledTime).toLocaleString('he-IL')}</span>
+                </button>
+              ) : (
+                <button 
+                  className="px-6 py-3 bg-yellow-500 text-black rounded-lg hover:bg-yellow-600 transition duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleSendMessage}
+                  disabled={sending || (!message.trim() && selectedMedia.length === 0)}
+                >
+                  {sending ? (
+                    <>
+                      <span className="animate-spin">⌛</span>
+                      <span>שולח...</span>
+                    </>
+                  ) : (
+                    <span>שלח עכשיו</span>
+                  )}
+                </button>
+              )}
             </div>
 
             {sendingFeedback && (

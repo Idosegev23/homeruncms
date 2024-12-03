@@ -30,18 +30,33 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
 
   const handleChange = (e) => {
     const { name, value, type } = e.target;
+    
     if (name === 'Budget') {
-      // Remove non-digit characters and parse as number
+      // הסרת תווים שאינם מספרים והמרה למספר
       const numericValue = value.replace(/\D/g, '');
+      if (numericValue === '') {
+        setEditedCustomer({ ...editedCustomer, [name]: '' });
+        setFormattedBudget('');
+      } else {
+        setEditedCustomer({ ...editedCustomer, [name]: numericValue });
+        setFormattedBudget(Number(numericValue).toLocaleString());
+      }
+    } else if (type === 'number') {
+      // טיפול בשדות מספריים אחרים
+      const numericValue = value === '' ? '' : Number(value);
       setEditedCustomer({ ...editedCustomer, [name]: numericValue });
-      // Format the value for display
-      setFormattedBudget(Number(numericValue).toLocaleString());
     } else if (type === 'select-multiple') {
       const options = Array.from(e.target.options);
       const selectedValues = options
         .filter(option => option.selected)
         .map(option => option.value);
-      setEditedCustomer({ ...editedCustomer, [name]: selectedValues });
+      if (selectedValues.length > 0) {
+        setEditedCustomer({ ...editedCustomer, [name]: selectedValues });
+      } else {
+        const newCustomer = { ...editedCustomer };
+        delete newCustomer[name];
+        setEditedCustomer(newCustomer);
+      }
     } else {
       setEditedCustomer({ ...editedCustomer, [name]: value });
     }
@@ -141,7 +156,24 @@ const EditCustomerModal = ({ customer, onSave, onClose }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(editedCustomer);
+    
+    // המרת שדות מספריים
+    const processedCustomer = {
+      ...editedCustomer,
+      Cell: Number(editedCustomer.Cell),
+      Budget: Number(editedCustomer.Budget),
+      Rooms: Number(editedCustomer.Rooms),
+      Square_meters: Number(editedCustomer.Square_meters)
+    };
+
+    // סינון מערכים ריקים
+    Object.keys(processedCustomer).forEach(key => {
+      if (Array.isArray(processedCustomer[key]) && processedCustomer[key].length === 0) {
+        delete processedCustomer[key];
+      }
+    });
+
+    onSave(processedCustomer);
   };
 
   const allAreas = [

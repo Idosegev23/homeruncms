@@ -365,6 +365,21 @@ export const getRelevantProperties = (customer, properties = []) => {
 export const updateCustomer = async (customer) => {
   const { id, lastMessageDate, chatId, ...fields } = customer;
 
+  // המרת שדות מספריים
+  const processedFields = {
+    ...fields,
+    Cell: Number(fields.Cell),
+    Budget: Number(fields.Budget),
+    Rooms: Number(fields.Rooms),
+    Square_meters: Number(fields.Square_meters)
+  };
+
+  // ולידציה של הנתונים
+  const validationErrors = validateCustomerData(processedFields);
+  if (validationErrors.length > 0) {
+    throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
+  }
+
   // רשימת השדות התקפים בטבלת Customers
   const validFields = [
     'First_name',
@@ -393,19 +408,26 @@ export const updateCustomer = async (customer) => {
   ];
 
   // סינון השדות כך שרק שדות תקפים יישלחו לאירטייבל
-  const validUpdates = Object.keys(fields)
+  const validUpdates = Object.keys(processedFields)
     .filter(key => validFields.includes(key))
     .reduce((obj, key) => {
-      obj[key] = fields[key];
+      // וידוא שמערכים לא ריקים
+      if (Array.isArray(processedFields[key]) && processedFields[key].length === 0) {
+        return obj;
+      }
+      obj[key] = processedFields[key];
       return obj;
     }, {});
 
   try {
     // עדכון נתוני הלקוח בטבלת Customers
-    await base('Customers').update(id, validUpdates);
+    const updatedRecord = await base('Customers').update(id, validUpdates);
 
     // החזרת האובייקט המעודכן
-    return { id, ...validUpdates };
+    return {
+      id,
+      ...updatedRecord.fields
+    };
   } catch (error) {
     console.error('Error updating customer:', error);
     throw error;

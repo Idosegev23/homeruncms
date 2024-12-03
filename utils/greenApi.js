@@ -1,325 +1,450 @@
 import axios from 'axios';
-import { format, isAfter, isBefore, setHours, setMinutes, addDays } from 'date-fns';
+import { format, isAfter, isBefore, setHours, setMinutes, addDays, getDay } from 'date-fns';
+import { he } from 'date-fns/locale';
 
-const instanceId = process.env.NEXT_PUBLIC_WHATSAPP_ID_INSTANCE;
-const apiToken = process.env.NEXT_PUBLIC_WHATSAPP_API_TOKEN_INSTANCE;
-const apiUrl = process.env.NEXT_PUBLIC_GREENAPI_API_URL;
-const mediaUrl = process.env.NEXT_PUBLIC_GREENAPI_MEDIA_URL;
+const API_URL = process.env.NEXT_PUBLIC_GREENAPI_API_URL;
+const idInstance = process.env.NEXT_PUBLIC_WHATSAPP_ID_INSTANCE;
+const apiTokenInstance = process.env.NEXT_PUBLIC_WHATSAPP_API_TOKEN_INSTANCE;
 
-const CACHE_DURATION = 5 * 60 * 1000; // 5 דקות במילישניות
-let cache = {
-  incomingMessages: null,
-  outgoingMessages: null,
-  lastFetch: {
-    incomingMessages: 0,
-    outgoingMessages: 0
-  }
-};
-
-let dailyMessageCount = 0;
-let lastResetDate = new Date().toDateString();
-let messageQueue = [];
-let isProcessingQueue = false;
-
-const getMessage = async (chatId, idMessage) => {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/waInstance${instanceId}/getMessage/${apiToken}`,
-      { chatId, idMessage }
-    );
-    return response.data;
-  } catch (error) {
-    console.error('Error getting message:', error);
-    throw error;
-  }
-};
-
-const getCachedData = async (key, fetchFunction) => {
-  const now = Date.now();
-  if (!cache[key] || now - cache.lastFetch[key] > CACHE_DURATION) {
-    try {
-      const data = await fetchFunction();
-      cache[key] = data;
-      cache.lastFetch[key] = now;
-    } catch (error) {
-      console.error(`Error fetching ${key}:`, error);
-      throw error;
-    }
-  }
-  return cache[key];
-};
-
-const resetDailyCount = () => {
-  const today = new Date().toDateString();
-  if (today !== lastResetDate) {
-    dailyMessageCount = 0;
-    lastResetDate = today;
-  }
-};
-
-const isValidSendTime = (date) => {
-  const hour = date.getHours();
-  const day = date.getDay();
-
-  if (day === 5 && hour >= 14) return false; // Friday after 2 PM
-  if (day === 6) return false; // Saturday
-  if (hour < 8 || hour >= 20) return false;
-
-  return true;
-};
-
-const getNextValidSendTime = (date) => {
-  let nextDate = new Date(date);
-  while (!isValidSendTime(nextDate)) {
-    nextDate = addDays(nextDate, 1);
-    nextDate = setHours(nextDate, 8);
-    nextDate = setMinutes(nextDate, 0);
-  }
-  return nextDate;
-};
-
-const processQueue = async () => {
-  if (isProcessingQueue || messageQueue.length === 0) return;
-
-  isProcessingQueue = true;
-  while (messageQueue.length > 0) {
-    const { chatId, message, immediate } = messageQueue[0];
-    const now = new Date();
-
-    if (immediate || (isValidSendTime(now) && dailyMessageCount < 200)) {
-      try {
-        await greenApi.sendMessage(chatId, message);
-        messageQueue.shift();
-        localStorage.setItem('messageQueue', JSON.stringify(messageQueue));
-        
-        await new Promise(resolve => setTimeout(resolve, 15000));
-        
-      } catch (error) {
-        console.error('Error sending message from queue:', error);
-        messageQueue.push(messageQueue.shift());
-        await new Promise(resolve => setTimeout(resolve, 60000));
-      }
-    } else {
-      const nextValidTime = getNextValidSendTime(now);
-      const waitTime = nextValidTime.getTime() - now.getTime();
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-  }
-  isProcessingQueue = false;
-};
-
+// עזרה בפורמט מספרי טלפון
 const formatPhoneNumber = (phoneNumber) => {
-  if (!phoneNumber) {
-    console.error('Invalid phone number:', phoneNumber);
-    return '';
-  }
-
+  if (!phoneNumber) return '';
+  
+  // הסר תווים שאינם ספרות
   const cleaned = phoneNumber.toString().replace(/\D/g, '');
+  
+  // אם המספר מתחיל ב-972, השאר אותו כמו שהוא
   if (cleaned.startsWith('972')) {
     return cleaned;
   }
+  
+  // אם המספר מתחיל ב-0, הסר אותו והוסף 972
+  if (cleaned.startsWith('0')) {
+    return `972${cleaned.slice(1)}`;
+  }
+  
+  // אחרת, הוסף 972 בהתחלה
   return `972${cleaned}`;
 };
 
-const greenApi = {
-  sendMessage: async (phoneNumber, message) => {
-    console.log(`Attempting to send message to ${phoneNumber}`);
-    resetDailyCount();
-    if (dailyMessageCount >= 200) {
-      throw new Error("Daily message limit reached");
-    }
-    try {
-      const chatId = `${formatPhoneNumber(phoneNumber)}@c.us`;
-      const response = await axios.post(
-        `${apiUrl}/waInstance${instanceId}/sendMessage/${apiToken}`,
-        { chatId, message }
-      );
-      dailyMessageCount++;
-      console.log(`Message sent successfully to ${phoneNumber}`);
-      return response.data;
-    } catch (error) {
-      console.error('Error sending message:', error);
-      throw error;
-    }
-  },
+class GreenAPI {
+  constructor() {
+    this.messageStats = {
+      dailyCount: 0,
+      totalCount: 0,
+      lastReset: new Date().setHours(0, 0, 0, 0)
+    };
 
-  sendFile: async (chatId, filePath, filename, caption) => {
-    resetDailyCount();
-    if (dailyMessageCount >= 200) {
-      throw new Error("Daily message limit reached");
+    this.messageQueue = [];
+    this.isProcessing = false;
+
+    this.cache = {
+      incomingMessages: null,
+      outgoingMessages: null,
+      lastFetch: {
+        incomingMessages: 0,
+        outgoingMessages: 0
+      }
+    };
+
+    // טעינת סטטיסטיקות והודעות בתור מ-localStorage
+    if (typeof window !== 'undefined') {
+      const savedStats = localStorage.getItem('messageStats');
+      if (savedStats) {
+        const parsedStats = JSON.parse(savedStats);
+        const today = new Date().setHours(0, 0, 0, 0);
+        if (today > parsedStats.lastReset) {
+          parsedStats.dailyCount = 0;
+          parsedStats.lastReset = today;
+        }
+        this.messageStats = parsedStats;
+      }
+
+      const savedQueue = localStorage.getItem('messageQueue');
+      if (savedQueue) {
+        this.messageQueue = JSON.parse(savedQueue);
+        this.processQueue();
+      }
+    }
+  }
+
+  formatPhoneNumber(phoneNumber) {
+    return formatPhoneNumber(phoneNumber);
+  }
+
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  _updateMessageStats() {
+    this.messageStats.dailyCount++;
+    this.messageStats.totalCount++;
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('messageStats', JSON.stringify(this.messageStats));
+    }
+  }
+
+  async getMessageStats() {
+    const today = new Date().setHours(0, 0, 0, 0);
+    if (today > this.messageStats.lastReset) {
+      this.messageStats.dailyCount = 0;
+      this.messageStats.lastReset = today;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('messageStats', JSON.stringify(this.messageStats));
+      }
     }
 
-    try {
-      const formData = new FormData();
-      formData.append('chatId', chatId);
-      formData.append('file', filePath);
-      if (filename) formData.append('filename', filename);
-      if (caption) formData.append('caption', caption);
+    return {
+      dailyCount: this.messageStats.dailyCount,
+      totalCount: this.messageStats.totalCount,
+      lastReset: this.messageStats.lastReset
+    };
+  }
 
-      const response = await axios.post(
-        `${mediaUrl}/waInstance${instanceId}/sendFileByUpload/${apiToken}`,
-        formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
-      );
-      dailyMessageCount++;
-      return response.data;
-    } catch (error) {
-      console.error('Error sending file:', error);
-      throw error;
-    }
-  },
-
-  getChatHistory: async (chatId, count = 100) => {
-    try {
-      const response = await axios.post(
-        `${apiUrl}/waInstance${instanceId}/getChatHistory/${apiToken}`,
-        { chatId, count }
-      );
-      return response.data;
-    } catch (error) {
-      console.error('Error getting chat history:', error);
-      throw error;
-    }
-  },
-
-  receiveNotification: async () => {
+  async receiveNotification() {
     try {
       const response = await axios.get(
-        `${apiUrl}/waInstance${instanceId}/receiveNotification/${apiToken}`
+        `${API_URL}/waInstance${idInstance}/receiveNotification/${apiTokenInstance}`
       );
-      
-      if (response.data) {
-        console.log('Notification received:', response.data);
-        return response.data;
-      } else {
-        console.log('No new notifications.');
-        return null;
-      }
+      return response.data;
     } catch (error) {
       console.error('Error receiving notification:', error);
       throw error;
     }
-  },
+  }
 
-  deleteNotification: async (receiptId) => {
+  async deleteNotification(receiptId) {
     try {
       const response = await axios.delete(
-        `${apiUrl}/waInstance${instanceId}/deleteNotification/${apiToken}/${receiptId}`
+        `${API_URL}/waInstance${idInstance}/deleteNotification/${apiTokenInstance}/${receiptId}`
       );
       return response.data;
     } catch (error) {
       console.error('Error deleting notification:', error);
       throw error;
     }
-  },
-  
-  // הוספת השהייה של שנייה לפני כל קריאה ל-API
-  getLastIncomingMessages: async (minutes = 1440) => {
-    return getCachedData('incomingMessages', async () => {
-      try {
-        await greenApi.delay(5000); // השהייה של שנייה בין הקריאות
-        const response = await axios.get(
-          `${apiUrl}/waInstance${instanceId}/lastIncomingMessages/${apiToken}`,
-          { params: { minutes } }
-        );
-        return response.data;
-      } catch (error) {
-        console.error('Error getting last incoming messages:', error);
-        throw error;
-      }
-    });
-  },
+  }
 
-  getLastOutgoingMessages: async (minutes = 1440) => {
-    return getCachedData('outgoingMessages', async () => {
-      try {
-        await greenApi.delay(5000); // השהייה של שנייה בין הקריאות
-        const response = await axios.get(
-          `${apiUrl}/waInstance${instanceId}/lastOutgoingMessages/${apiToken}`,
-          { params: { minutes } }
-        );
-        return response.data;
-      } catch (error) {
-        console.error('Error getting last outgoing messages:', error);
-        throw error;
-      }
-    });
-  },
-
-  // פונקציית עזר להשהייה
-  delay: async (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-
-  addToQueue: (phoneNumber, message, immediate = false) => {
-    const chatId = `${formatPhoneNumber(phoneNumber)}@c.us`;
-    messageQueue.push({ chatId, message, immediate });
-    localStorage.setItem('messageQueue', JSON.stringify(messageQueue));
-    console.log(`Message added to queue for ${chatId}: ${message}`);
-    if (!isProcessingQueue) {
-      processQueue();
-    }
-  },
-
-  getQueueLength: () => messageQueue.length,
-  getQueue: () => messageQueue,
-  removeFromQueue: (index) => {
-    messageQueue.splice(index, 1);
-    localStorage.setItem('messageQueue', JSON.stringify(messageQueue));
-  },
-  updateQueueItem: (index, newMessage) => {
-    if (index >= 0 && index < messageQueue.length) {
-      messageQueue[index].message = newMessage;
-      localStorage.setItem('messageQueue', JSON.stringify(messageQueue));
-    }
-  },
-  getMessageStats: () => {
-    return {
-      dailyCount: dailyMessageCount,
-      queueLength: messageQueue.length
-    };
-  },
-
-  getNextValidSendTime,
-  sendNow: async (chatId, message) => {
-    console.log(`Sending message immediately to ${chatId}`);
+  async sendMessage(chatId, message) {
     try {
+      const formattedChatId = chatId.includes('@') ? 
+        chatId : 
+        `${this.formatPhoneNumber(chatId)}@c.us`;
+
       const response = await axios.post(
-        `${apiUrl}/waInstance${instanceId}/sendMessage/${apiToken}`,
-        { chatId, message }
+        `${API_URL}/waInstance${idInstance}/sendMessage/${apiTokenInstance}`,
+        {
+          chatId: formattedChatId,
+          message
+        }
       );
-      console.log(`Message sent successfully to ${chatId}`);
+
+      if (response.data.status === 'sent' || response.data.status === 'queued') {
+        await this._updateMessageStats();
+      }
+
       return response.data;
     } catch (error) {
       console.error('Error sending message:', error);
       throw error;
     }
-  },
+  }
 
-  scheduleMessage: async (chatId, message, scheduledTime) => {
-    const now = new Date();
-    if (scheduledTime <= now) {
-      throw new Error("Scheduled time must be in the future");
+  async sendFile(chatId, file, caption = '') {
+    try {
+      const formattedChatId = chatId.includes('@') ? 
+        chatId : 
+        `${this.formatPhoneNumber(chatId)}@c.us`;
+
+      // יצירת FormData
+      const formData = new FormData();
+      formData.append('chatId', formattedChatId);
+      formData.append('file', file);
+      
+      // הוספת שם הקובץ
+      const fileName = file.name || 'file.' + file.type.split('/')[1];
+      formData.append('fileName', fileName);
+      
+      // הוספת כיתוב אם יש
+      if (caption) {
+        formData.append('caption', caption);
+      }
+
+      // שליחת הקובץ
+      const response = await axios.post(
+        `https://media.green-api.com/waInstance${idInstance}/sendFileByUpload/${apiTokenInstance}`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+
+      // עדכון סטטיסטיקות
+      if (response.data.status === 'sent' || response.data.status === 'queued') {
+        await this._updateMessageStats();
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error('Error sending file:', error);
+      throw error;
+    }
+  }
+
+  async getChatHistory(chatId, count = 100) {
+    try {
+      const formattedChatId = chatId.includes('@') ? 
+        chatId : 
+        `${this.formatPhoneNumber(chatId)}@c.us`;
+
+      const response = await axios.post(
+        `${API_URL}/waInstance${idInstance}/getChatHistory/${apiTokenInstance}`,
+        {
+          chatId: formattedChatId,
+          count
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error getting chat history:', error);
+      throw error;
+    }
+  }
+
+  async getMessage(chatId, messageId) {
+    try {
+      const formattedChatId = chatId.includes('@') ? 
+        chatId : 
+        `${this.formatPhoneNumber(chatId)}@c.us`;
+
+      const response = await axios.post(
+        `${API_URL}/waInstance${idInstance}/getMessage/${apiTokenInstance}`,
+        {
+          chatId: formattedChatId,
+          idMessage: messageId
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error getting message:', error);
+      throw error;
+    }
+  }
+
+  async getLastIncomingMessages(minutes = 1440) {
+    try {
+      const response = await axios.get(
+        `${API_URL}/waInstance${idInstance}/lastIncomingMessages/${apiTokenInstance}`,
+        {
+          params: { minutes }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error getting last incoming messages:', error);
+      throw error;
+    }
+  }
+
+  async getLastOutgoingMessages(minutes = 1440) {
+    try {
+      const response = await axios.get(
+        `${API_URL}/waInstance${idInstance}/lastOutgoingMessages/${apiTokenInstance}`,
+        {
+          params: { minutes }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error getting last outgoing messages:', error);
+      throw error;
+    }
+  }
+
+  // ניהול תור הודעות
+  getQueue() {
+    return this.messageQueue;
+  }
+
+  getQueueLength() {
+    return this.messageQueue.length;
+  }
+
+  addToQueue(chatId, message, type = 'text', file = null, caption = '', quotedMessageId = null) {
+    const formattedChatId = chatId.includes('@') ? 
+      chatId : 
+      `${this.formatPhoneNumber(chatId)}@c.us`;
+
+    this.messageQueue.push({
+      chatId: formattedChatId,
+      message,
+      type,
+      file,
+      caption,
+      quotedMessageId,
+      timestamp: new Date().getTime()
+    });
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('messageQueue', JSON.stringify(this.messageQueue));
     }
 
-    const timeToWait = scheduledTime.getTime() - now.getTime();
-    
-    setTimeout(async () => {
-      try {
-        await greenApi.sendMessage(chatId, message);
-        console.log(`Scheduled message sent to ${chatId}`);
-      } catch (error) {
-        console.error(`Failed to send scheduled message to ${chatId}:`, error);
+    if (!this.isProcessing) {
+      this.processQueue();
+    }
+  }
+
+  removeFromQueue(index) {
+    if (index >= 0 && index < this.messageQueue.length) {
+      this.messageQueue.splice(index, 1);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('messageQueue', JSON.stringify(this.messageQueue));
       }
-    }, timeToWait);
+    }
+  }
 
-    return { status: 'scheduled', scheduledTime };
-  },
+  async processQueue() {
+    if (this.isProcessing || this.messageQueue.length === 0) return;
+    
+    this.isProcessing = true;
+    
+    try {
+      while (this.messageQueue.length > 0) {
+        const { chatId, message, type, file, caption, quotedMessageId } = this.messageQueue[0];
+        
+        switch (type) {
+          case 'text':
+            await this.sendMessage(chatId, message);
+            break;
+          case 'file':
+            await this.sendFile(chatId, file, caption);
+            break;
+          case 'quoted':
+            await this.sendQuotedMessage(chatId, message, quotedMessageId);
+            break;
+          default:
+            console.warn(`Unknown message type: ${type}`);
+        }
+        
+        this.messageQueue.shift();
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('messageQueue', JSON.stringify(this.messageQueue));
+        }
+        
+        // המתן קצת בין הודעות
+        await this.delay(1000);
+      }
+    } catch (error) {
+      console.error('Error processing message queue:', error);
+    } finally {
+      this.isProcessing = false;
+    }
+  }
 
-  isValidSendTime,
-  formatPhoneNumber,
-  processQueue,
-  chatId: (phoneNumber) => `${formatPhoneNumber(phoneNumber)}@c.us`,
-  clearCache: () => {
-    cache = {
+  // פונקציות נוספות
+  async sendQuotedMessage(chatId, message, quotedMessageId) {
+    try {
+      const formattedChatId = chatId.includes('@') ? 
+        chatId : 
+        `${this.formatPhoneNumber(chatId)}@c.us`;
+
+      const response = await axios.post(
+        `${API_URL}/waInstance${idInstance}/sendMessage/${apiTokenInstance}`,
+        {
+          chatId: formattedChatId,
+          message,
+          quotedMessageId
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error sending quoted message:', error);
+      throw error;
+    }
+  }
+
+  async getActiveChats() {
+    try {
+      const response = await axios.get(
+        `${API_URL}/waInstance${idInstance}/getChats/${apiTokenInstance}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error getting active chats:', error);
+      throw error;
+    }
+  }
+
+  async getChatInfo(chatId) {
+    try {
+      const formattedChatId = chatId.includes('@') ? 
+        chatId : 
+        `${this.formatPhoneNumber(chatId)}@c.us`;
+
+      const response = await axios.post(
+        `${API_URL}/waInstance${idInstance}/getChatInfo/${apiTokenInstance}`,
+        { chatId: formattedChatId }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error getting chat info:', error);
+      throw error;
+    }
+  }
+
+  async getAvatar(chatId) {
+    try {
+      const formattedChatId = chatId.includes('@') ? 
+        chatId : 
+        `${this.formatPhoneNumber(chatId)}@c.us`;
+
+      const response = await axios.post(
+        `${API_URL}/waInstance${idInstance}/getAvatar/${apiTokenInstance}`,
+        { chatId: formattedChatId }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error getting avatar:', error);
+      return null;
+    }
+  }
+
+  async checkWhatsApp(phoneNumber) {
+    try {
+      const formattedPhone = this.formatPhoneNumber(phoneNumber);
+      const response = await axios.post(
+        `${API_URL}/waInstance${idInstance}/checkWhatsapp/${apiTokenInstance}`,
+        { phoneNumber: formattedPhone }
+      );
+      return response.data.existsWhatsapp;
+    } catch (error) {
+      console.error('Error checking WhatsApp:', error);
+      return false;
+    }
+  }
+
+  async readChat(chatId) {
+    try {
+      const formattedChatId = chatId.includes('@') ? 
+        chatId : 
+        `${this.formatPhoneNumber(chatId)}@c.us`;
+
+      const response = await axios.post(
+        `${API_URL}/waInstance${idInstance}/readChat/${apiTokenInstance}`,
+        { chatId: formattedChatId }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error marking chat as read:', error);
+      throw error;
+    }
+  }
+
+  clearCache() {
+    this.cache = {
       incomingMessages: null,
       outgoingMessages: null,
       lastFetch: {
@@ -328,9 +453,10 @@ const greenApi = {
       }
     };
     console.log('Cache cleared');
-  },
+  }
+}
 
-  getMessage
-};
-
+// ייצוא מופע יחיד של הקלאס
+const greenApi = new GreenAPI();
+export { greenApi };
 export default greenApi;

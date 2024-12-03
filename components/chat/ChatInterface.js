@@ -23,6 +23,8 @@ const ChatInterface = () => {
   const [chatPage, setChatPage] = useState(1);
   const [file, setFile] = useState(null);
   const chatRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const [filePreview, setFilePreview] = useState(null);
 
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -44,43 +46,47 @@ const ChatInterface = () => {
   };
 
   const handleSendMessage = useCallback(async () => {
-    if ((message.trim() === '' && !file) || !selectedCustomer) return;
+    if ((!message.trim() && !file) || !selectedCustomer) return;
 
     setIsSending(true);
     try {
       let newMessage;
+      const chatId = selectedCustomer.chatId || `${greenApi.formatPhoneNumber(selectedCustomer.Cell)}@c.us`;
+
       if (file) {
-        const response = await greenApi.sendFile(selectedCustomer.chatId, file);
+        const response = await greenApi.sendFile(chatId, file, message);
         newMessage = { 
           id: response.idMessage, 
           mediaUrl: response.urlFile,
           mediaType: file.type.includes('image') ? 'imageMessage' : file.type.includes('video') ? 'videoMessage' : 'document',
           caption: message,
           timestamp: Date.now() / 1000,
-          chatId: selectedCustomer.chatId,
-          type: 'outgoing'
+          chatId: chatId,
+          type: 'outgoing',
+          fileName: file.name
         };
         setFile(null);
+        setFilePreview(null);
       } else {
-        await greenApi.sendNow(selectedCustomer.chatId, message);
+        const response = await greenApi.sendMessage(chatId, message);
         newMessage = { 
-          id: Date.now(), 
+          id: response.idMessage || Date.now(), 
           textMessage: message, 
           type: 'outgoing', 
           timestamp: Date.now() / 1000,
-          chatId: selectedCustomer.chatId
+          chatId: chatId
         };
       }
       
-      setChatHistory(prev => [newMessage, ...prev]);
+      setChatHistory(prev => [...prev, newMessage]);
       setMessage('');
 
-      // Scroll to the bottom to show the new message
       setTimeout(() => {
         chatRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     } catch (error) {
       console.error('שגיאה בשליחת הודעה:', error);
+      alert('שגיאה בשליחת ההודעה. נסה שוב.');
     } finally {
       setIsSending(false);
     }
@@ -193,10 +199,11 @@ const ChatInterface = () => {
       const history = await fetchWithRetry(() => 
         greenApi.getChatHistory(customer.chatId, MESSAGES_PER_PAGE, (page - 1) * MESSAGES_PER_PAGE)
       );
+      const sortedHistory = history.sort((a, b) => a.timestamp - b.timestamp);
       if (page === 1) {
-        setChatHistory(history);
+        setChatHistory(sortedHistory);
       } else {
-        setChatHistory(prevHistory => [...history, ...prevHistory]);
+        setChatHistory(prevHistory => [...sortedHistory, ...prevHistory]);
       }
       setChatPage(page);
     } catch (error) {
@@ -230,163 +237,265 @@ const ChatInterface = () => {
     </div>
   );
 
+  const handleFileSelect = (e) => {
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      
+      // יצירת תצוגה מקדימה
+      if (selectedFile.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFilePreview({
+            type: 'image',
+            url: reader.result,
+            name: selectedFile.name
+          });
+        };
+        reader.readAsDataURL(selectedFile);
+      } else if (selectedFile.type.startsWith('video/')) {
+        setFilePreview({
+          type: 'video',
+          url: URL.createObjectURL(selectedFile),
+          name: selectedFile.name
+        });
+      } else {
+        setFilePreview({
+          type: 'file',
+          name: selectedFile.name,
+          size: selectedFile.size
+        });
+      }
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); // מונע ירידת שורה
+      handleSendMessage();
+    }
+  };
+
   return (
     <Layout>
-      {isLoading ? (
-        <LoadingIndicator />
-      ) : activeCustomers.length > 0 ? (
-        <div className="flex h-screen antialiased text-gray-800">
-          {/* רשימת לקוחות */}
-          <div className="flex flex-col w-1/4 bg-black p-4 overflow-y-auto">
-            <h2 className="text-lg font-semibold text-yellow-500" id="customers-heading">לקוחות פעילים ({activeCustomers.length})</h2>
-            <ul aria-labelledby="customers-heading" role="list">
-  {activeCustomers.slice(0, page * CUSTOMERS_PER_PAGE).map(customer => (
-    <li 
-      key={customer.id} 
-      onClick={() => handleCustomerSelect(customer)} 
-      className={`cursor-pointer p-2 flex justify-between items-center border border-yellow-500 rounded-lg mb-2 ${
-        selectedCustomer?.id === customer.id 
-          ? 'bg-yellow-500' 
-          : 'bg-black hover:bg-gray-700'
-      }`}
-      role="button"
-      tabIndex="0"
-      aria-selected={selectedCustomer?.id === customer.id}
-    >
-      <div>
-        <span className={`font-semibold ${
-          selectedCustomer?.id === customer.id 
-            ? 'text-black' 
-            : 'text-yellow-500'
-        }`}>
-          {customer.First_name} {customer.Last_name}
-        </span>
-        <div className="text-sm text-white">
-          {customer.lastIncomingMessage && `התקבלה: ${customer.lastIncomingMessage.textMessage}`}
+      <div className="flex flex-col min-h-screen">
+        <div className="flex-grow container mx-auto p-4">
+          <div className="grid grid-cols-4 gap-4 h-[calc(100vh-16rem)]">
+            {/* רשימת לקוחות */}
+            <div className="col-span-1 bg-gray-800 rounded-lg p-4 overflow-y-auto">
+              <h2 className="text-xl font-bold mb-4 text-yellow-500">לקוחות ({activeCustomers.length})</h2>
+              <div className="space-y-2">
+                {activeCustomers.map(customer => (
+                  <div
+                    key={customer.id}
+                    onClick={() => handleCustomerSelect(customer)}
+                    className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                      selectedCustomer?.id === customer.id
+                        ? 'bg-yellow-500 text-black'
+                        : 'bg-gray-700 text-white hover:bg-gray-600'
+                    }`}
+                  >
+                    <div className="font-semibold">{customer.First_name} {customer.Last_name}</div>
+                    <div className="text-sm opacity-75">{customer.Cell}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* אזור הצ'אט */}
+            <div className="col-span-3 bg-gray-800 rounded-lg flex flex-col">
+              {selectedCustomer ? (
+                <>
+                  {/* כותרת */}
+                  <div className="p-4 border-b border-gray-700">
+                    <h2 className="text-xl font-bold text-yellow-500">
+                      {selectedCustomer.First_name} {selectedCustomer.Last_name}
+                    </h2>
+                    <p className="text-sm text-gray-400">{selectedCustomer.Cell}</p>
+                  </div>
+
+                  {/* היסטוריית הודעות */}
+                  <div className="flex-1 overflow-y-auto p-4">
+                    <div className="flex flex-col space-y-4">
+                      {chatHistory.map((msg, index) => (
+                        <div
+                          key={msg.id || index}
+                          className={`flex ${msg.type === 'outgoing' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[70%] rounded-lg p-3 ${
+                              msg.type === 'outgoing'
+                                ? 'bg-yellow-500 text-black'
+                                : 'bg-gray-700 text-white'
+                            }`}
+                          >
+                            {msg.mediaUrl && (
+                              <div className="mb-2">
+                                {msg.mediaType === 'imageMessage' && (
+                                  <div className="space-y-2">
+                                    <img
+                                      src={msg.mediaUrl}
+                                      alt="תמונה"
+                                      className="rounded-lg max-h-64 w-auto"
+                                    />
+                                    {msg.caption && (
+                                      <p className="text-sm opacity-90">{msg.caption}</p>
+                                    )}
+                                  </div>
+                                )}
+                                {msg.mediaType === 'videoMessage' && (
+                                  <div className="space-y-2">
+                                    <video
+                                      src={msg.mediaUrl}
+                                      controls
+                                      className="rounded-lg max-h-64 w-auto"
+                                    />
+                                    {msg.caption && (
+                                      <p className="text-sm opacity-90">{msg.caption}</p>
+                                    )}
+                                  </div>
+                                )}
+                                {msg.mediaType === 'document' && (
+                                  <div className="space-y-2">
+                                    <a
+                                      href={msg.mediaUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-2 text-blue-400 hover:text-blue-300"
+                                    >
+                                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                      </svg>
+                                      <span>{msg.fileName || 'פתח קובץ'}</span>
+                                    </a>
+                                    {msg.caption && (
+                                      <p className="text-sm opacity-90">{msg.caption}</p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {(!msg.mediaUrl && msg.textMessage) && (
+                              <div className="whitespace-pre-wrap">
+                                {msg.textMessage}
+                              </div>
+                            )}
+                            <div className="text-xs opacity-75 mt-1">
+                              {new Date(msg.timestamp * 1000).toLocaleTimeString('he-IL')}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div ref={chatRef} />
+                  </div>
+
+                  {/* תצוגה מקדימה של קובץ */}
+                  {filePreview && (
+                    <div className="p-4 border-t border-gray-700 bg-gray-900">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-yellow-500">תצוגה מקדימה:</h3>
+                        <button
+                          onClick={() => {
+                            setFile(null);
+                            setFilePreview(null);
+                          }}
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          ביטול
+                        </button>
+                      </div>
+                      <div className="rounded-lg overflow-hidden">
+                        {filePreview.type === 'image' && (
+                          <img
+                            src={filePreview.url}
+                            alt="תצוגה מקדימה"
+                            className="max-h-32 w-auto rounded-lg"
+                          />
+                        )}
+                        {filePreview.type === 'video' && (
+                          <video
+                            src={filePreview.url}
+                            controls
+                            className="max-h-32 w-auto rounded-lg"
+                          />
+                        )}
+                        {filePreview.type === 'file' && (
+                          <div className="flex items-center gap-2 p-2 bg-gray-800 rounded-lg">
+                            <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <div>
+                              <p className="text-sm text-white">{filePreview.name}</p>
+                              <p className="text-xs text-gray-400">
+                                {(filePreview.size / 1024 / 1024).toFixed(2)} MB
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* תיבת שליחת הודעה */}
+                  <div className="p-4 border-t border-gray-700 bg-gray-900">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        onKeyDown={handleKeyPress}
+                        placeholder="הקלד הודעה..."
+                        className="flex-grow p-2 rounded-lg bg-gray-800 text-white border border-gray-700 focus:border-yellow-500 focus:outline-none"
+                      />
+                      <input
+                        type="file"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        ref={fileInputRef}
+                      />
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-2 rounded-lg bg-gray-800 text-yellow-500 hover:bg-gray-700"
+                      >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={handleSendMessage}
+                        disabled={isSending || (!message.trim() && !file)}
+                        className={`p-2 rounded-lg ${
+                          isSending || (!message.trim() && !file)
+                            ? 'bg-gray-700 text-gray-400'
+                            : 'bg-yellow-500 text-black hover:bg-yellow-600'
+                        }`}
+                      >
+                        {isSending ? (
+                          <svg className="w-6 h-6 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center">
+                  <p className="text-xl text-gray-500">בחר לקוח כדי להתחיל שיחה</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-      <span className="text-sm text-gray-400">{customer.Cell}</span>
-    </li>
-  ))}
-</ul>
-
-            {activeCustomers.length > page * CUSTOMERS_PER_PAGE && (
-              <button onClick={handleLoadMore} className="mt-4 bg-black text-yellow-500 rounded-lg p-2">
-                טען עוד לקוחות
-              </button>
-            )}
-          </div>
-  
-          {/* חלון צ'אט */}
-          <div className="flex-grow flex flex-col p-4">
-            {selectedCustomer ? (
-              <>
-                <div className="flex-grow p-4 bg-gray-900 rounded-lg overflow-y-auto flex flex-col-reverse" ref={chatRef}>
-                  {isLoadingHistory && chatPage === 1 ? (
-                    <div className="text-center text-yellow-500">טוען היסטוריה...</div>
-                  ) : (
-                    <>
-{chatHistory.map((msg, index) => (
-  <div 
-    key={index}
-    className={`flex ${msg.type === 'outgoing' ? 'justify-end' : 'justify-start'} mb-4`}
-  >
-    <div 
-      className={`p-3 rounded-lg max-w-xs ${
-        msg.type === 'outgoing' 
-          ? 'bg-black text-yellow-300' 
-          : 'bg-yellow-500 text-black'
-      }`}
-    >
-      {msg.textMessage && <p className="mb-1">{msg.textMessage}</p>}
-      {msg.mediaUrl && msg.mediaType === 'imageMessage' && (
-        <img src={msg.mediaUrl} alt="Image" className="mb-1 max-w-full h-auto" />
-      )}
-      {msg.mediaUrl && msg.mediaType === 'videoMessage' && (
-        <video controls className="mb-1 max-w-full h-auto">
-          <source src={msg.mediaUrl} type="video/mp4" />
-          Your browser does not support the video tag.
-        </video>
-      )}
-      {msg.mediaUrl && msg.mediaType === 'document' && (
-        <a href={msg.mediaUrl} download={msg.fileName} className="text-blue-500 underline">
-          {msg.fileName || 'Download Document'}
-        </a>
-      )}
-      {msg.mediaUrl && msg.mediaType === 'audio' && (
-        <audio controls className="mb-1 w-full">
-          <source src={msg.mediaUrl} type="audio/mpeg" />
-          Your browser does not support the audio element.
-        </audio>
-      )}
-      {msg.caption && <p className="mt-1 text-sm">{msg.caption}</p>}
-      <span className="text-xs opacity-75">
-        {new Intl.DateTimeFormat('he-IL', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false
-        }).format(new Date(isNaN(msg.timestamp) ? Date.now() : Number(msg.timestamp) * 1000))}
-      </span>
-    </div>
-  </div>
-))}
-
-
-                      {chatHistory.length >= MESSAGES_PER_PAGE * chatPage && (
-                        <button 
-                          onClick={handleLoadMoreMessages} 
-                          className="w-full mb-4 bg-black text-yellow-300 rounded-lg p-2"
-                          disabled={isLoadingHistory}
-                        >
-                          {isLoadingHistory ? 'טוען...' : 'טען הודעות נוספות'}
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-                <div className="p-4 bg-black flex items-center">
-                  <input 
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    className="flex-grow border border-yellow-500 rounded-lg p-2 bg-gray-800 text-white"
-                    placeholder="הקלד הודעה..."
-                    onKeyDown={(e) => e.key === 'Enter' ? debouncedSendMessage() : null}
-                    aria-label="הקלד הודעה"
-                  />
-                  <input 
-                    type="file" 
-                    onChange={handleFileChange} 
-                    className="mr-4 bg-yellow-500 text-black rounded-lg p-2"
-                  />
-                  <button 
-                    onClick={debouncedSendMessage} 
-                    disabled={isSending}
-                    className={`mr-4 bg-yellow-500 text-black rounded-lg p-2 ${isSending ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    aria-busy={isSending}
-                  >
-                    שלח
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-xl text-yellow-500">בחר לקוח כדי להתחיל שיחה</p>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-center h-screen">
-          <p className="text-xl text-red-500">לא ניתן לטעון את רשימת הלקוחות. אנא נסה שוב מאוחר יותר.</p>
-        </div>
-      )}
     </Layout>
   );
-  
 };
 
 export default ChatInterface;
