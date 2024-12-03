@@ -1,19 +1,13 @@
-import '../styles/globals.css'
-import { useEffect } from 'react';
-import { useRouter } from 'next/router';
-import { checkAuthentication } from '../utils/airtable';
+import { AuthProvider } from '../context/AuthContext';
+import Layout from '../components/Layout';
+import '../styles/globals.css';
 
 function MyApp({ Component, pageProps }) {
-  const router = useRouter();
-
-  useEffect(() => {
-    const token = checkAuthentication();
-    if (!token && router.pathname !== '/auth') {
-      router.push('/auth');
-    }
-  }, [router.pathname]);
-
-  return <Component {...pageProps} />
+  return (
+    <AuthProvider>
+      <Component {...pageProps} />
+    </AuthProvider>
+  );
 }
 
-export default MyApp
+export default MyApp;
