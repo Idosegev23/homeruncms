@@ -224,6 +224,13 @@ const SendMessage = () => {
 
   const filteredCustomers = React.useMemo(() => {
     let filtered = customers.filter(customer => {
+      if (selectedProperties[0]) {
+        const matchResult = calculateMatchPercentage(selectedProperties[0], customer);
+        if (matchResult.dealBreakers && matchResult.dealBreakers.length > 0) {
+          return false;
+        }
+      }
+
       const firstName = customer.First_name || '';
       const lastName = customer.Last_name || '';
       const cell = customer.Cell ? String(customer.Cell) : '';
