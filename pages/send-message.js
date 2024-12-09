@@ -226,7 +226,7 @@ const SendMessage = () => {
     let filtered = customers.filter(customer => {
       if (selectedProperties[0]) {
         const matchResult = calculateMatchPercentage(selectedProperties[0], customer);
-        if (matchResult.dealBreakers && matchResult.dealBreakers.length > 0) {
+        if (matchResult.dealBreakers?.length > 0 || matchResult.score < 70) {
           return false;
         }
       }
@@ -529,7 +529,7 @@ const SendMessage = () => {
                         <td className="text-center">{renderMatchIndicator(matchResult.matchDetails.parking)}</td>
                       </tr>
                       <tr>
-                        <td className="py-1">ממ"ד</td>
+                        <td className="py-1">מ��"ד</td>
                         <td className="py-1">{customer.saferoom === 'must_yes' ? 'חובה' : 'לא חובה'}</td>
                         <td className="py-1">{formatPropertyValue('saferoom', property.saferoom)}</td>
                         <td className="text-center">{renderMatchIndicator(matchResult.matchDetails.saferoom)}</td>
