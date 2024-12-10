@@ -665,7 +665,7 @@ const SendMessage = () => {
               value={searchQuery}
               onChange={handleSearchChange}
             />
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setSortByMatch(!sortByMatch)}
                 className={`px-4 py-2 rounded ${
@@ -677,7 +677,7 @@ const SendMessage = () => {
               
               <button
                 onClick={() => setShowThresholdDialog(true)}
-                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 flex items-center gap-2"
+                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 flex items-center gap-2 text-black"
               >
                 <span>הגדרות סינון</span>
                 <span className="text-sm">({matchThreshold}%)</span>
