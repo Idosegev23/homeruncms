@@ -134,6 +134,8 @@ const SendMessage = () => {
   const [scheduledTime, setScheduledTime] = useState('');
   const fileInputRef = useRef(null);
   const [mediaPreview, setMediaPreview] = useState([]);
+  const [matchThreshold, setMatchThreshold] = useState(60); // אחוז ההתאמה המינימלי
+  const [showThresholdDialog, setShowThresholdDialog] = useState(false);
 
   const customerTags = [
     '{{שם פרטי}}', '{{שם משפחה}}', '{{טלפון}}', '{{תקציב}}',
@@ -226,7 +228,9 @@ const SendMessage = () => {
     let filtered = customers.filter(customer => {
       if (selectedProperties[0]) {
         const matchResult = calculateMatchPercentage(selectedProperties[0], customer);
-        if (matchResult.dealBreakers?.length > 0 || matchResult.score < 70) {
+        
+        // בדיקת dealbreakers ואחוז התאמה מינימלי
+        if (matchResult.dealBreakers?.length > 0 || matchResult.score < matchThreshold) {
           return false;
         }
       }
@@ -240,6 +244,11 @@ const SendMessage = () => {
              cell.includes(searchQuery);
     });
 
+    // בדיקה אם אין תוצאות
+    if (filtered.length === 0 && selectedProperties[0]) {
+      setShowThresholdDialog(true);
+    }
+
     if (sortByMatch && selectedProperties[0]) {
       filtered.sort((a, b) => {
         const matchA = calculateMatchPercentage(selectedProperties[0], a);
@@ -249,7 +258,7 @@ const SendMessage = () => {
     }
 
     return filtered;
-  }, [customers, searchQuery, sortByMatch, selectedProperties]);
+  }, [customers, searchQuery, sortByMatch, selectedProperties, matchThreshold]);
 
   const filteredProperties = properties.filter(property => {
     const street = property.street || '';
@@ -529,7 +538,7 @@ const SendMessage = () => {
                         <td className="text-center">{renderMatchIndicator(matchResult.matchDetails.parking)}</td>
                       </tr>
                       <tr>
-                        <td className="py-1">מ��"ד</td>
+                        <td className="py-1">ממ"ד</td>
                         <td className="py-1">{customer.saferoom === 'must_yes' ? 'חובה' : 'לא חובה'}</td>
                         <td className="py-1">{formatPropertyValue('saferoom', property.saferoom)}</td>
                         <td className="text-center">{renderMatchIndicator(matchResult.matchDetails.saferoom)}</td>
@@ -554,6 +563,48 @@ const SendMessage = () => {
             </div>
           </div>
         )}
+      </div>
+    );
+  };
+
+  // דיאלוג לשינוי אחוז ההתאמה
+  const ThresholdDialog = () => {
+    const [newThreshold, setNewThreshold] = useState(matchThreshold);
+
+    return showThresholdDialog && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div className="bg-white p-6 rounded-lg shadow-xl">
+          <h3 className="text-lg font-bold mb-4">לא נמצאו תוצאות</h3>
+          <p className="mb-4">האם תרצה לשנות את אחוז ההתאמה המינימלי?</p>
+          <div className="mb-4">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={newThreshold}
+              onChange={(e) => setNewThreshold(Number(e.target.value))}
+              className="w-full"
+            />
+            <div className="text-center">{newThreshold}%</div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <button
+              onClick={() => {
+                setMatchThreshold(newThreshold);
+                setShowThresholdDialog(false);
+              }}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            >
+              שמור
+            </button>
+            <button
+              onClick={() => setShowThresholdDialog(false)}
+              className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+            >
+              ביטול
+            </button>
+          </div>
+        </div>
       </div>
     );
   };
