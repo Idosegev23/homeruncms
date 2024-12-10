@@ -134,8 +134,9 @@ const SendMessage = () => {
   const [scheduledTime, setScheduledTime] = useState('');
   const fileInputRef = useRef(null);
   const [mediaPreview, setMediaPreview] = useState([]);
-  const [matchThreshold, setMatchThreshold] = useState(60); // אחוז ההתאמה המינימלי
+  const [matchThreshold, setMatchThreshold] = useState(60);
   const [showThresholdDialog, setShowThresholdDialog] = useState(false);
+  const [showNoResultsWarning, setShowNoResultsWarning] = useState(false);
 
   const customerTags = [
     '{{שם פרטי}}', '{{שם משפחה}}', '{{טלפון}}', '{{תקציב}}',
@@ -143,7 +144,7 @@ const SendMessage = () => {
   ];
 
   const propertyTags = [
-    '{{מחיר נכס}}', '{{חדרים בנכס}}', '{{מ"ר בנכס}}', '{{קומה בנ��ס}}',
+    '{{מחיר נכס}}', '{{חדרים בנכס}}', '{{מ"ר בנכס}}', '{{קומה בנכס}}',
     '{{קומה מקסימלית בנכס}}', '{{רחוב בנכס}}', '{{מעלית}}',
     '{{חניה}}', '{{ממ"ד}}', '{{מצב הנכס}}', '{{פוטנציאל תמ"א}}', '{{מרפסת}}',
     '{{מיזוג אוויר}}', '{{קמפיין}}'
@@ -224,6 +225,14 @@ const SendMessage = () => {
     setSearchQuery(e.target.value.toLowerCase());
   };
 
+  const checkFilterResults = (filtered) => {
+    if (filtered.length === 0 && selectedProperties[0]) {
+      setShowNoResultsWarning(true);
+    } else {
+      setShowNoResultsWarning(false);
+    }
+  };
+
   const filteredCustomers = React.useMemo(() => {
     let filtered = customers.filter(customer => {
       if (selectedProperties[0]) {
@@ -244,10 +253,8 @@ const SendMessage = () => {
              cell.includes(searchQuery);
     });
 
-    // בדיקה אם אין תוצאות
-    if (filtered.length === 0 && selectedProperties[0]) {
-      setShowThresholdDialog(true);
-    }
+    // בדיקת תוצאות הסינון
+    checkFilterResults(filtered);
 
     if (sortByMatch && selectedProperties[0]) {
       filtered.sort((a, b) => {
@@ -567,15 +574,30 @@ const SendMessage = () => {
     );
   };
 
-  // דיאלוג לשינוי אחוז ההתאמה
+  const NoResultsWarning = () => {
+    return showNoResultsWarning && (
+      <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4" role="alert">
+        <p className="font-bold">לא נמצאו תוצאות</p>
+        <p>נסה להוריד את אחוז ההתאמה המינימלי בהגדרות הסינון</p>
+      </div>
+    );
+  };
+
   const ThresholdDialog = () => {
     const [newThreshold, setNewThreshold] = useState(matchThreshold);
 
+    const handleSave = () => {
+      setMatchThreshold(newThreshold);
+      setShowThresholdDialog(false);
+      // בדיקה מחדש של התוצאות עם האחוז החדש
+      checkFilterResults(filteredCustomers);
+    };
+
     return showThresholdDialog && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-        <div className="bg-white p-6 rounded-lg shadow-xl">
-          <h3 className="text-lg font-bold mb-4">לא נמצאו תוצאות</h3>
-          <p className="mb-4">האם תרצה לשנות את אחוז ההתאמה המינימלי?</p>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white p-6 rounded-lg shadow-xl" dir="rtl">
+          <h3 className="text-lg font-bold mb-4">הגדרות סינון לקוחות</h3>
+          <p className="mb-4">אחוז התאמה מינימלי להצגת לקוחות:</p>
           <div className="mb-4">
             <input
               type="range"
@@ -585,14 +607,11 @@ const SendMessage = () => {
               onChange={(e) => setNewThreshold(Number(e.target.value))}
               className="w-full"
             />
-            <div className="text-center">{newThreshold}%</div>
+            <div className="text-center mt-2 text-lg font-bold">{newThreshold}%</div>
           </div>
-          <div className="flex justify-end space-x-2">
+          <div className="flex justify-end gap-2">
             <button
-              onClick={() => {
-                setMatchThreshold(newThreshold);
-                setShowThresholdDialog(false);
-              }}
+              onClick={handleSave}
               className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
             >
               שמור
