@@ -590,7 +590,14 @@ const SendMessage = () => {
       setMatchThreshold(newThreshold);
       setShowThresholdDialog(false);
       // בדיקה מחדש של התוצאות עם האחוז החדש
-      checkFilterResults(filteredCustomers);
+      const filtered = customers.filter(customer => {
+        if (selectedProperties[0]) {
+          const matchResult = calculateMatchPercentage(selectedProperties[0], customer);
+          return !(matchResult.dealBreakers?.length > 0 || matchResult.score < newThreshold);
+        }
+        return true;
+      });
+      checkFilterResults(filtered);
     };
 
     if (!showThresholdDialog) return null;
@@ -598,8 +605,8 @@ const SendMessage = () => {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white p-6 rounded-lg shadow-xl" dir="rtl">
-          <h3 className="text-lg font-bold mb-4">הגדרות סינון לקוחות</h3>
-          <p className="mb-4">אחוז התאמה מינימלי להצגת לקוחות:</p>
+          <h3 className="text-lg font-bold mb-4 text-black">הגדרות סינון לקוחות</h3>
+          <p className="mb-4 text-black">אחוז התאמה מינימלי להצגת לקוחות:</p>
           <div className="mb-4">
             <input
               type="range"
@@ -609,18 +616,18 @@ const SendMessage = () => {
               onChange={(e) => setNewThreshold(Number(e.target.value))}
               className="w-full"
             />
-            <div className="text-center mt-2 text-lg font-bold">{newThreshold}%</div>
+            <div className="text-center mt-2 text-lg font-bold text-black">{newThreshold}%</div>
           </div>
           <div className="flex justify-end gap-2">
             <button
               onClick={handleSave}
               className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
             >
-              שמור
+              שמו��
             </button>
             <button
               onClick={() => setShowThresholdDialog(false)}
-              className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+              className="bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400"
             >
               ביטול
             </button>
@@ -669,7 +676,7 @@ const SendMessage = () => {
               <button
                 onClick={() => setSortByMatch(!sortByMatch)}
                 className={`px-4 py-2 rounded ${
-                  sortByMatch ? 'bg-blue-500 text-white' : 'bg-gray-200'
+                  sortByMatch ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
                 }`}
               >
                 מיון לפי אחוזי התאמה
@@ -702,6 +709,9 @@ const SendMessage = () => {
             </button>
           </div>
         </div>
+
+        <ThresholdDialog />
+        <NoResultsWarning />
 
         <div className="grid grid-cols-2 gap-8">
           <div className="bg-gray-800 p-6 rounded-lg shadow-md overflow-hidden">
