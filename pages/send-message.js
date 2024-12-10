@@ -143,7 +143,7 @@ const SendMessage = () => {
   ];
 
   const propertyTags = [
-    '{{מחיר נכס}}', '{{חדרים בנכס}}', '{{מ"ר בנכס}}', '{{קומה בנכס}}',
+    '{{מחיר נכס}}', '{{חדרים בנכס}}', '{{מ"ר בנכס}}', '{{קומה בנ��ס}}',
     '{{קומה מקסימלית בנכס}}', '{{רחוב בנכס}}', '{{מעלית}}',
     '{{חניה}}', '{{ממ"ד}}', '{{מצב הנכס}}', '{{פוטנציאל תמ"א}}', '{{מרפסת}}',
     '{{מיזוג אוויר}}', '{{קמפיין}}'
@@ -644,18 +644,24 @@ const SendMessage = () => {
               value={searchQuery}
               onChange={handleSearchChange}
             />
-            {isFromPropertiesPage && (
+            <div className="flex items-center gap-2 mb-4">
               <button
                 onClick={() => setSortByMatch(!sortByMatch)}
-                className={`px-4 py-2 rounded transition-colors ${
-                  sortByMatch 
-                    ? 'bg-yellow-500 text-black' 
-                    : 'bg-gray-700 text-white hover:bg-gray-600'
+                className={`px-4 py-2 rounded ${
+                  sortByMatch ? 'bg-blue-500 text-white' : 'bg-gray-200'
                 }`}
               >
-                {sortByMatch ? '✓ ממוין לפי התאמה' : 'מיין לפי התאמה'}
+                מיון לפי אחוזי התאמה
               </button>
-            )}
+              
+              <button
+                onClick={() => setShowThresholdDialog(true)}
+                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 flex items-center gap-2"
+              >
+                <span>הגדרות סינון</span>
+                <span className="text-sm">({matchThreshold}%)</span>
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <button 
